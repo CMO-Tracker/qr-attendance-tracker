@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Attendance Report</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body class="bg-gray-50 min-h-screen">
+
+  <header class="bg-red-800 border-b-4 border-yellow-500 py-4 px-6 flex justify-between items-center">
+    <h1 class="text-white text-2xl font-bold">Attendance Report</h1>
+    <a href="admin.html" class="text-yellow-300 text-sm underline">← Back to Admin</a>
+  </header>
+
+  <main class="max-w-4xl mx-auto p-6">
+
+    <div id="loading" class="text-center text-gray-500">Loading report...</div>
+
+    <div id="report-content" class="hidden">
+      <!-- Event summary -->
+      <div class="bg-white rounded-xl shadow p-6 border border-gray-200 mb-6">
+        <h2 id="event-name" class="text-lg font-semibold text-red-800 mb-1"></h2>
+        <p id="event-meta" class="text-sm text-gray-500 mb-4"></p>
+        <div id="stats" class="grid grid-cols-2 sm:grid-cols-4 gap-3"></div>
+      </div>
+
+      <!-- Filters + export -->
+      <div class="bg-white rounded-xl shadow p-4 border border-gray-200 mb-4 flex flex-wrap gap-3 items-end">
+        <div class="flex-1 min-w-[150px]">
+          <label class="block text-xs font-medium text-gray-600 mb-1">Search name</label>
+          <input type="text" id="search-input" placeholder="Type a name..."
+            class="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-gray-600 mb-1">Status</label>
+          <select id="status-filter" class="border border-gray-300 rounded-lg px-3 py-1.5 text-sm">
+            <option value="">All</option>
+            <option value="Present">Present</option>
+            <option value="Absent">Absent</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-gray-600 mb-1">Department</label>
+          <select id="dept-filter" class="border border-gray-300 rounded-lg px-3 py-1.5 text-sm">
+            <option value="">All</option>
+          </select>
+        </div>
+        <button onclick="exportCSV()"
+          class="bg-yellow-500 hover:bg-yellow-600 text-red-900 font-semibold text-sm px-4 py-1.5 rounded-lg">
+          Export CSV
+        </button>
+      </div>
+
+      <!-- Records table -->
+      <div class="bg-white rounded-xl shadow border border-gray-200 overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead class="bg-gray-100 text-gray-600 text-left">
+            <tr>
+              <th class="px-3 py-2">Name</th>
+              <th class="px-3 py-2">Department</th>
+              <th class="px-3 py-2">Program</th>
+              <th class="px-3 py-2">Year/Section</th>
+              <th class="px-3 py-2">Status</th>
+              <th class="px-3 py-2">Check-In</th>
+              <th class="px-3 py-2">Check-Out</th>
+            </tr>
+          </thead>
+          <tbody id="records-body"></tbody>
+        </table>
+      </div>
+    </div>
+
+  </main>
+
+  <script src="config.js"></script>
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const eventId = params.get("event");
+
+    let currentEvent = null;
+    let allRecords = [];
+
+    async function init() {
+      if (!eventId) {
+        document.getElementById("loading").textContent = "No event specified.";
+        return;
+      }
+
+      const { data: eventData, error: eventError } = await supabaseClient
+        .from("events").select("*").eq("id", eventId).single();
+
+      if (eventError || !eventData) {
+        document.getElementById("loading").textContent = "Event not found.";
+        return;
+      }
+      currentEvent = eventData;
+
+      const { data: records, error: recordsError } = await supabaseClient
+        .from("attendance_records").select("*").eq("event_id", eventId)
+        .order("last_name");
+
+      if (recordsError) {
+        document.getElementById("loading").textContent = "Error loading records: " + recordsError.message;
+        return;
+      }
+      allRecords = records;
+
+      document.getElementById("event-name").textContent = currentEvent.name;
+      document.getElementById("event-meta").textContent =
+        `${currentEvent.event_date} · ${currentEvent.event_type === 'open' ? 'Open Event' : 'Closed Event'}`;
+
+      renderStats();
+      populateDeptFilter();
+      renderTable(allRecords);
+
+      document.getElementById("loading").classList.add("hidden");
+      document.getElementById("report-content").classList.remove("hidden");
+
+      document.getElementById("search-input").addEventListener("input", applyFilters);
+      document.getElementById("status-filter").addEventListener("change", applyFilters);
+      document.getElementById("dept-filter").addEventListener("change", applyFilters);
+    }
+
+    function renderStats() {
+      const statsEl = document.getElementById("stats");
+      const total = allRecords.length;
+
+      if (currentEvent.event_type === "closed") {
+        const present = allRecords.filter(r => r.status === "Present").length;
+        statsEl.innerHTML = statCard("Total Roster", total) +
+          statCard("Present", present, "text-green-700") +
+          statCard("Absent", total - present, "text-gray-500");
+      } else {
+        const checkedIn = allRecords.filter(r => r.check_in_time).length;
+        const checkedOut = allRecords.filter(r => r.check_out_time).length;
+        const both = allRecords.filter(r => r.check_in_time && r.check_out_time).length;
+        statsEl.innerHTML = statCard("Total Records", total) +
+          statCard("Checked In", checkedIn, "text-green-700") +
+          statCard("Checked Out", checkedOut, "text-green-700") +
+          statCard("Full Attendance", both, "text-yellow-700");
+      }
+    }
+
+    function statCard(label, value, colorClass = "text-gray-800") {
+      return `
+        <div class="bg-gray-50 rounded-lg p-3 text-center border border-gray-100">
+          <p class="text-xl font-bold ${colorClass}">${value}</p>
+          <p class="text-xs text-gray-500">${label}</p>
+        </div>
+      `;
+    }
+
+    function populateDeptFilter() {
+      const deptSelect = document.getElementById("dept-filter");
+      const depts = [...new Set(allRecords.map(r => r.department).filter(Boolean))].sort();
+      depts.forEach(d => {
+        const opt = document.createElement("option");
+        opt.value = d;
+        opt.textContent = d;
+        deptSelect.appendChild(opt);
+      });
+    }
+
+    function applyFilters() {
+      const search = document.getElementById("search-input").value.toLowerCase().trim();
+      const status = document.getElementById("status-filter").value;
+      const dept = document.getElementById("dept-filter").value;
+
+      const filtered = allRecords.filter(r => {
+        const fullName = `${r.first_name} ${r.middle_name || ''} ${r.last_name}`.toLowerCase();
+        const matchesSearch = !search || fullName.includes(search);
+        const matchesStatus = !status || r.status === status;
+        const matchesDept = !dept || r.department === dept;
+        return matchesSearch && matchesStatus && matchesDept;
+      });
+
+      renderTable(filtered);
+    }
+
+    function renderTable(records) {
+      const tbody = document.getElementById("records-body");
+      if (records.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="7" class="text-center text-gray-400 py-6">No matching records.</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = records.map(r => `
+        <tr class="border-t border-gray-100">
+          <td class="px-3 py-2">${r.last_name}, ${r.first_name} ${r.middle_name || ''}</td>
+          <td class="px-3 py-2">${r.department || '—'}</td>
+          <td class="px-3 py-2">${r.program || '—'}</td>
+          <td class="px-3 py-2">${[r.year_level, r.section].filter(Boolean).join(' / ') || '—'}</td>
+          <td class="px-3 py-2 ${r.status === 'Present' ? 'text-green-700' : 'text-gray-400'}">${r.status}</td>
+          <td class="px-3 py-2">${formatTime(r.check_in_time)}</td>
+          <td class="px-3 py-2">${formatTime(r.check_out_time)}</td>
+        </tr>
+      `).join("");
+    }
+
+    function formatTime(isoString) {
+      if (!isoString) return '—';
+      return new Date(isoString).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }
+
+    // ---- CSV Export ----
+    function exportCSV() {
+      const search = document.getElementById("search-input").value.toLowerCase().trim();
+      const status = document.getElementById("status-filter").value;
+      const dept = document.getElementById("dept-filter").value;
+
+      const filtered = allRecords.filter(r => {
+        const fullName = `${r.first_name} ${r.middle_name || ''} ${r.last_name}`.toLowerCase();
+        const matchesSearch = !search || fullName.includes(search);
+        const matchesStatus = !status || r.status === status;
+        const matchesDept = !dept || r.department === dept;
+        return matchesSearch && matchesStatus && matchesDept;
+      });
+
+      const headers = ["Last Name", "First Name", "Middle Name", "Department", "Program", "Year Level", "Section", "Status", "Check-In", "Check-Out"];
+      const rows = filtered.map(r => [
+        r.last_name, r.first_name, r.middle_name || '', r.department || '', r.program || '',
+        r.year_level || '', r.section || '', r.status,
+        r.check_in_time ? new Date(r.check_in_time).toLocaleString() : '',
+        r.check_out_time ? new Date(r.check_out_time).toLocaleString() : ''
+      ]);
+
+      // Wrap each value in quotes and escape any internal quotes, so commas/names with quotes don't break the CSV
+      const csvContent = [headers, ...rows]
+        .map(row => row.map(val => `"${String(val).replace(/"/g, '""')}"`).join(","))
+        .join("\n");
+
+      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `${currentEvent.name.replace(/\s+/g, '-')}-attendance.csv`;
+      link.click();
+      URL.revokeObjectURL(url);
+    }
+
+    init();
+  </script>
+</body>
+</html>

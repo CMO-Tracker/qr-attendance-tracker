@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>QR Attendance Tracker — Connection Test</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body class="bg-red-900 min-h-screen flex items-center justify-center">
+  <div class="bg-white rounded-xl shadow-lg p-8 max-w-md w-full border-4 border-yellow-500">
+    <h1 class="text-2xl font-bold text-red-800 mb-4">Connection Test</h1>
+    <p id="status" class="text-gray-700">Checking connection...</p>
+  </div>
+
+  <script src="config.js"></script>
+  <script>
+    async function testConnection() {
+      const statusEl = document.getElementById("status");
+      const { data, error } = await supabaseClient
+        .from("events")
+        .select("*");
+
+      if (error) {
+        statusEl.textContent = "❌ Connection failed: " + error.message;
+        statusEl.classList.add("text-red-600");
+      } else {
+        statusEl.textContent = `✅ Connected! Found ${data.length} event(s) in the database.`;
+        statusEl.classList.add("text-green-700");
+      }
+    }
+
+    testConnection();
+  </script>
+</body>
+</html>

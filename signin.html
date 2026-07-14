@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sign In — QR Attendance Tracker</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body class="bg-red-900 min-h-screen py-8 px-4">
+
+  <div class="max-w-md mx-auto">
+
+    <div id="loading-state" class="bg-white rounded-xl shadow-lg p-6 text-center border-4 border-yellow-500">
+      <p class="text-gray-600">Loading event...</p>
+    </div>
+
+    <div id="error-state" class="hidden bg-white rounded-xl shadow-lg p-6 text-center border-4 border-yellow-500">
+      <p class="text-red-700 font-semibold" id="error-message"></p>
+    </div>
+
+    <!-- OPEN EVENT FORM -->
+    <div id="signin-form-wrapper" class="hidden bg-white rounded-xl shadow-lg p-6 border-4 border-yellow-500">
+      <h1 id="event-title" class="text-xl font-bold text-red-800 mb-1"></h1>
+      <p id="action-label" class="text-sm font-semibold text-yellow-700 uppercase mb-4"></p>
+
+      <form id="signin-form" class="space-y-3">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">First Name</label>
+          <input type="text" id="first-name" required class="w-full border border-gray-300 rounded-lg px-3 py-2" />
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Middle Name / Initial</label>
+          <input type="text" id="middle-name" class="w-full border border-gray-300 rounded-lg px-3 py-2" />
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Last Name</label>
+          <input type="text" id="last-name" required class="w-full border border-gray-300 rounded-lg px-3 py-2" />
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">College / Department</label>
+          <select id="department" required class="w-full border border-gray-300 rounded-lg px-3 py-2">
+            <option value="">-- Select Department --</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Course / Program</label>
+          <select id="program" required class="w-full border border-gray-300 rounded-lg px-3 py-2">
+            <option value="">-- Select Department First --</option>
+          </select>
+        </div>
+        <div id="year-level-wrapper">
+          <label class="block text-sm font-medium text-gray-700 mb-1">Year Level</label>
+          <select id="year-level" required class="w-full border border-gray-300 rounded-lg px-3 py-2">
+            <option value="">-- Select --</option>
+            <option value="1st Year">1st Year</option>
+            <option value="2nd Year">2nd Year</option>
+            <option value="3rd Year">3rd Year</option>
+            <option value="4th Year">4th Year</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Section</label>
+          <input type="text" id="section" required class="w-full border border-gray-300 rounded-lg px-3 py-2" />
+        </div>
+
+        <button type="submit" class="w-full bg-red-800 hover:bg-red-900 text-white font-semibold py-2 rounded-lg mt-2">
+          Submit
+        </button>
+      </form>
+    </div>
+
+    <!-- CLOSED EVENT FORM -->
+    <div id="closed-form-wrapper" class="hidden bg-white rounded-xl shadow-lg p-6 border-4 border-yellow-500">
+      <h1 id="closed-event-title" class="text-xl font-bold text-red-800 mb-1"></h1>
+      <p class="text-sm font-semibold text-yellow-700 uppercase mb-4">Verify Your Name</p>
+
+      <form id="closed-signin-form" class="space-y-3">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
+          <input type="text" id="closed-name-input" required
+            placeholder="e.g. Dela Cruz, Juan Miguel"
+            class="w-full border border-gray-300 rounded-lg px-3 py-2" />
+        </div>
+        <button type="submit" class="w-full bg-red-800 hover:bg-red-900 text-white font-semibold py-2 rounded-lg">
+          Find My Name
+        </button>
+      </form>
+      <div id="match-results" class="mt-2 space-y-1"></div>
+    </div>
+
+    <!-- Shared status message + success area for BOTH flows -->
+    <p id="form-message" class="text-sm text-center mt-3 text-white"></p>
+    <div id="success-area" class="max-w-md mx-auto"></div>
+
+  </div>
+
+  <script src="config.js"></script>
+  <script src="departments.js"></script>
+  <script src="nameParser.js"></script>
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const eventId = params.get("event");
+    const action = params.get("action");
+
+    const loadingState = document.getElementById("loading-state");
+    const errorState = document.getElementById("error-state");
+    const errorMessage = document.getElementById("error-message");
+    const formWrapper = document.getElementById("signin-form-wrapper");
+    const closedFormWrapper = document.getElementById("closed-form-wrapper");
+    const messageEl = document.getElementById("form-message");
+
+    let currentEvent = null;
+    let currentMatches = [];
+
+    async function init() {
+      if (!eventId || !action) {
+        showError("This QR code is missing information. Please rescan the official event QR code.");
+        return;
+      }
+
+      const { data, error } = await supabaseClient
+        .from("events")
+        .select("*")
+        .eq("id", eventId)
+        .single();
+
+      if (error || !data) {
+        showError("This event could not be found. It may have been removed.");
+        return;
+      }
+
+      currentEvent = data;
+      loadingState.classList.add("hidden");
+
+      if (currentEvent.event_type === "closed") {
+        document.getElementById("closed-event-title").textContent = currentEvent.name;
+        closedFormWrapper.classList.remove("hidden");
+      } else {
+        document.getElementById("event-title").textContent = currentEvent.name;
+        document.getElementById("action-label").textContent = action === "checkin" ? "Check-In" : "Check-Out";
+        populateDepartments();
+        formWrapper.classList.remove("hidden");
+      }
+    }
+
+    function showError(msg) {
+      loadingState.classList.add("hidden");
+      errorMessage.textContent = msg;
+      errorState.classList.remove("hidden");
+    }
+
+    // ---- Device fingerprint (shared by both flows) ----
+    function getDeviceFingerprint() {
+      const STORAGE_KEY = "qr_attendance_device_id";
+      let deviceId = localStorage.getItem(STORAGE_KEY);
+
+      if (!deviceId) {
+        const match = document.cookie.match(new RegExp('(^| )' + STORAGE_KEY + '=([^;]+)'));
+        if (match) deviceId = match[2];
+      }
+      if (!deviceId) {
+        deviceId = crypto.randomUUID();
+      }
+
+      localStorage.setItem(STORAGE_KEY, deviceId);
+      const oneYearInSeconds = 60 * 60 * 24 * 365;
+      document.cookie = `${STORAGE_KEY}=${deviceId}; max-age=${oneYearInSeconds}; path=/; SameSite=Lax`;
+      return deviceId;
+    }
+
+    // ---- Department -> Program dependent dropdown (open events) ----
+    function populateDepartments() {
+      const deptSelect = document.getElementById("department");
+      Object.keys(DEPARTMENT_PROGRAMS).forEach(dept => {
+        const opt = document.createElement("option");
+        opt.value = dept;
+        opt.textContent = dept;
+        deptSelect.appendChild(opt);
+      });
+
+      deptSelect.addEventListener("change", () => {
+        const programSelect = document.getElementById("program");
+        const selectedDept = deptSelect.value;
+        programSelect.innerHTML = `<option value="">-- Select Program --</option>`;
+
+        if (selectedDept && DEPARTMENT_PROGRAMS[selectedDept]) {
+          DEPARTMENT_PROGRAMS[selectedDept].forEach(program => {
+            const opt = document.createElement("option");
+            opt.value = program;
+            opt.textContent = program;
+            programSelect.appendChild(opt);
+          });
+        }
+
+        const yearLevelWrapper = document.getElementById("year-level-wrapper");
+        const yearLevelSelect = document.getElementById("year-level");
+        if (selectedDept === "BED") {
+          yearLevelWrapper.classList.add("hidden");
+          yearLevelSelect.required = false;
+          yearLevelSelect.value = "";
+        } else {
+          yearLevelWrapper.classList.remove("hidden");
+          yearLevelSelect.required = true;
+        }
+      });
+    }
+
+    // ---- OPEN EVENT: form submission ----
+    document.getElementById("signin-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const submitBtn = document.querySelector("#signin-form button[type=submit]");
+      submitBtn.disabled = true;
+      submitBtn.textContent = "Submitting...";
+
+      const deviceId = getDeviceFingerprint();
+
+      const { error: lockError } = await supabaseClient
+        .from("device_locks")
+        .insert({ event_id: eventId, action: action, device_fingerprint: deviceId });
+
+      if (lockError) {
+        messageEl.textContent = "⚠️ This device has already submitted attendance for this action.";
+        messageEl.className = "text-sm text-center mt-3 text-yellow-300 font-medium";
+        submitBtn.disabled = false;
+        submitBtn.textContent = "Submit";
+        return;
+      }
+
+      const record = {
+        event_id: eventId,
+        first_name: document.getElementById("first-name").value.trim(),
+        middle_name: document.getElementById("middle-name").value.trim(),
+        last_name: document.getElementById("last-name").value.trim(),
+        department: document.getElementById("department").value,
+        program: document.getElementById("program").value,
+        year_level: document.getElementById("year-level").value,
+        section: document.getElementById("section").value.trim(),
+        status: "Present"
+      };
+
+      if (action === "checkin") record.check_in_time = new Date().toISOString();
+      else if (action === "checkout") record.check_out_time = new Date().toISOString();
+
+      const { error } = await supabaseClient.from("attendance_records").insert(record);
+
+      if (error) {
+        messageEl.textContent = "❌ " + error.message;
+        messageEl.className = "text-sm text-center mt-3 text-yellow-300";
+        submitBtn.disabled = false;
+        submitBtn.textContent = "Submit";
+      } else {
+        formWrapper.innerHTML = `
+          <div class="text-center py-6">
+            <p class="text-2xl mb-2">✅</p>
+            <p class="text-lg font-semibold text-green-700">You're recorded for ${action === "checkin" ? "Check-In" : "Check-Out"}!</p>
+            <p class="text-sm text-gray-500 mt-1">${currentEvent.name}</p>
+          </div>
+        `;
+      }
+    });
+
+    // ---- CLOSED EVENT: name search ----
+    document.getElementById("closed-signin-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const nameInput = document.getElementById("closed-name-input").value;
+      const resultsEl = document.getElementById("match-results");
+      resultsEl.innerHTML = "";
+      messageEl.textContent = "";
+
+      const parsed = parseName(nameInput);
+      if (!parsed || !parsed.firstName || !parsed.lastName) {
+        messageEl.textContent = "Please enter your full first and last name.";
+        messageEl.className = "text-sm text-center mt-3 text-yellow-300";
+        return;
+      }
+
+      const { data, error } = await supabaseClient
+        .from("attendance_records")
+        .select("*")
+        .eq("event_id", eventId)
+        .eq("status", "Absent");
+
+      if (error) {
+        messageEl.textContent = "❌ " + error.message;
+        messageEl.className = "text-sm text-center mt-3 text-yellow-300";
+        return;
+      }
+
+      const matches = data.filter(row =>
+        namesMatch(parsed, { firstName: row.first_name, lastName: row.last_name })
+      );
+
+      if (matches.length === 0) {
+        messageEl.textContent = "Name not found on the roster. Please check your spelling or see the event admin.";
+        messageEl.className = "text-sm text-center mt-3 text-yellow-300";
+      } else if (matches.length === 1) {
+        verifyAndSignIn(matches[0]);
+      } else {
+        currentMatches = matches;
+        messageEl.textContent = "Multiple matches found — please select your name:";
+        messageEl.className = "text-sm text-center mt-3 text-white";
+        resultsEl.innerHTML = matches.map((m, idx) => `
+          <button onclick="selectMatch(${idx})"
+            class="block w-full text-left text-sm bg-white border border-gray-300 rounded-lg px-3 py-2 hover:bg-yellow-50">
+            ${m.last_name}, ${m.first_name} ${m.middle_name || ''}
+          </button>
+        `).join('');
+      }
+    });
+
+    function selectMatch(idx) {
+      verifyAndSignIn(currentMatches[idx]);
+    }
+
+    async function verifyAndSignIn(record) {
+      const deviceId = getDeviceFingerprint();
+
+      const { error: lockError } = await supabaseClient
+        .from("device_locks")
+        .insert({ event_id: eventId, action: "signin", device_fingerprint: deviceId });
+
+      if (lockError) {
+        messageEl.textContent = "⚠️ This device has already signed someone in for this event.";
+        messageEl.className = "text-sm text-center mt-3 text-yellow-300 font-medium";
+        return;
+      }
+
+      const { error } = await supabaseClient
+        .from("attendance_records")
+        .update({ status: "Present", check_in_time: new Date().toISOString() })
+        .eq("id", record.id);
+
+      if (error) {
+        messageEl.textContent = "❌ " + error.message;
+        messageEl.className = "text-sm text-center mt-3 text-yellow-300";
+      } else {
+        closedFormWrapper.innerHTML = `
+          <div class="text-center py-6">
+            <p class="text-2xl mb-2">✅</p>
+            <p class="text-lg font-semibold text-green-700">Welcome, ${record.first_name}!</p>
+            <p class="text-sm text-gray-500 mt-1">You're marked Present for ${currentEvent.name}</p>
+          </div>
+        `;
+      }
+    }
+
+    init();
+  </script>
+</body>
+</html>

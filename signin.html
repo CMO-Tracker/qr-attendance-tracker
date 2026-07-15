@@ -9,6 +9,12 @@
 </head>
 <body class="bg-red-900 min-h-screen py-8 px-4">
 
+  <div id="network-bar" class="fixed top-0 left-0 right-0 z-50 text-center text-sm font-semibold py-2 bg-green-600 text-white">
+    Connected to School Database
+  </div>
+
+  <div class="max-w-md mx-auto mt-10">
+
   <div class="max-w-md mx-auto">
 
     <div id="loading-state" class="bg-white rounded-xl shadow-lg p-6 text-center border-4 border-yellow-500">
@@ -17,6 +23,11 @@
 
     <div id="error-state" class="hidden bg-white rounded-xl shadow-lg p-6 text-center border-4 border-yellow-500">
       <p class="text-red-700 font-semibold" id="error-message"></p>
+    </div>
+
+    <div id="locked-state" class="hidden bg-white rounded-xl shadow-lg p-6 text-center border-4 border-yellow-500">
+      <p class="text-3xl mb-2">🔒</p>
+      <p class="text-yellow-800 font-semibold" id="locked-message"></p>
     </div>
 
     <!-- OPEN EVENT FORM -->
@@ -70,6 +81,27 @@
       </form>
     </div>
 
+    <!-- ONE-TOUCH CHECK-OUT -->
+    <div id="one-touch-wrapper" class="hidden bg-white rounded-xl shadow-lg p-6 border-4 border-yellow-500">
+      <h1 id="one-touch-title" class="text-xl font-bold text-red-800 mb-1"></h1>
+      <p class="text-sm font-semibold text-yellow-700 uppercase mb-4">Check-Out</p>
+
+      <div class="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-4 text-center">
+        <p class="text-lg font-semibold text-gray-800" id="one-touch-name"></p>
+        <p class="text-sm text-gray-500 mt-1" id="one-touch-details"></p>
+      </div>
+
+      <button id="one-touch-confirm-btn"
+        class="w-full bg-red-800 hover:bg-red-900 text-white font-semibold py-2 rounded-lg">
+        Confirm Check-Out
+      </button>
+      <button type="button" onclick="showManualCheckoutForm()"
+        class="w-full text-xs text-gray-500 underline mt-3">
+        Not you? Fill out manually
+      </button>
+    </div>
+
+
     <!-- CLOSED EVENT FORM -->
     <div id="closed-form-wrapper" class="hidden bg-white rounded-xl shadow-lg p-6 border-4 border-yellow-500">
       <h1 id="closed-event-title" class="text-xl font-bold text-red-800 mb-1"></h1>
@@ -90,7 +122,7 @@
     </div>
 
     <!-- Shared status message + success area for BOTH flows -->
-    <p id="form-message" class="text-sm text-center mt-3 text-white"></p>
+   <div id="form-message" class="text-sm text-center mt-3 text-white"></div>
     <div id="success-area" class="max-w-md mx-auto"></div>
 
   </div>
@@ -131,11 +163,26 @@
       }
 
       currentEvent = data;
+
+      const scheduleCheck = isWithinScheduleWindow();
+      if (!scheduleCheck.ok) {
+        showLocked(scheduleCheck.reason);
+        return;
+      }
+
       loadingState.classList.add("hidden");
 
       if (currentEvent.event_type === "closed") {
         document.getElementById("closed-event-title").textContent = currentEvent.name;
         closedFormWrapper.classList.remove("hidden");
+      } else if (action === "checkout" && getSessionForEvent(eventId)) {
+        cachedSession = getSessionForEvent(eventId);
+        document.getElementById("one-touch-title").textContent = currentEvent.name;
+        document.getElementById("one-touch-name").textContent =
+          `${cachedSession.first_name} ${cachedSession.middle_name || ''} ${cachedSession.last_name}`.replace(/\s+/g, ' ').trim();
+        document.getElementById("one-touch-details").textContent =
+          [cachedSession.department, cachedSession.program, cachedSession.year_level, cachedSession.section].filter(Boolean).join(' · ');
+        oneTouchWrapper.classList.remove("hidden");
       } else {
         document.getElementById("event-title").textContent = currentEvent.name;
         document.getElementById("action-label").textContent = action === "checkin" ? "Check-In" : "Check-Out";
@@ -167,6 +214,251 @@
       const oneYearInSeconds = 60 * 60 * 24 * 365;
       document.cookie = `${STORAGE_KEY}=${deviceId}; max-age=${oneYearInSeconds}; path=/; SameSite=Lax`;
       return deviceId;
+
+    }
+  // Calculates the distance in meters between two GPS coordinates
+    // using the Haversine formula (accounts for Earth's curvature).
+    function calculateDistanceMeters(lat1, lon1, lat2, lon2) {
+      const R = 6371000; // Earth's radius in meters
+      const toRad = deg => deg * Math.PI / 180;
+      const dLat = toRad(lat2 - lat1);
+      const dLon = toRad(lon2 - lon1);
+      const a = Math.sin(dLat / 2) ** 2 +
+                Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+                Math.sin(dLon / 2) ** 2;
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      return R * c;
+    }
+
+    // Wraps the browser's callback-based geolocation API in a Promise,
+    // so we can simply "await" a location instead of nesting callbacks.
+    function getCurrentPositionAsync(options) {
+      return new Promise((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, options);
+      });
+    }
+
+    // Returns { ok: true } if the student is within range of the event venue,
+    // or { ok: false, reason: "..." } if they're too far away or location
+    // couldn't be determined.
+    async function verifyGeofence() {
+      // No coordinates set on this event -> skip the check entirely
+      if (currentEvent.latitude == null || currentEvent.longitude == null) {
+        return { ok: true };
+      }
+
+      if (!navigator.geolocation) {
+        return { ok: false, reason: "Your browser does not support location services, which are required to register attendance for this event." };
+      }
+
+      try {
+        const position = await getCurrentPositionAsync({ enableHighAccuracy: true, timeout: 10000 });
+        const distance = calculateDistanceMeters(
+          position.coords.latitude, position.coords.longitude,
+          currentEvent.latitude, currentEvent.longitude
+        );
+
+        if (distance > currentEvent.radius_meters) {
+          return { ok: false, reason: "You must be physically present at the venue to register." };
+        }
+        return { ok: true };
+      } catch (err) {
+        return { ok: false, reason: "We couldn't verify your location. Please enable location permissions for this site and try again." };
+      }
+    }
+
+    // Returns { ok: true } if "now" falls within the event's start/end
+    // window, or { ok: false, reason: "..." } if it's too early or too late.
+    function isWithinScheduleWindow() {
+      if (!currentEvent.start_time || !currentEvent.end_time) {
+        return { ok: true }; // no schedule set on this event -> skip check
+      }
+
+      const now = new Date();
+      const start = new Date(currentEvent.start_time);
+      const end = new Date(currentEvent.end_time);
+
+      if (now < start) {
+        return { ok: false, reason: `This event hasn't started yet. Attendance opens at ${start.toLocaleString()}.` };
+      }
+      if (now > end) {
+        return { ok: false, reason: `This event's attendance window has closed. It ended at ${end.toLocaleString()}.` };
+      }
+      return { ok: true };
+    }
+
+    function showLocked(msg) {
+      loadingState.classList.add("hidden");
+      document.getElementById("locked-message").textContent = msg;
+      document.getElementById("locked-state").classList.remove("hidden");
+    }
+
+    // Renders the gold warning card required for geofence failures
+    function showGeofenceWarning(reason) {
+      messageEl.innerHTML = `
+        <div class="bg-yellow-100 border-2 border-yellow-500 text-yellow-900 rounded-lg p-3 text-sm font-semibold">
+          ⚠️ ${reason}
+        </div>
+      `;
+    }
+
+    // ---- Offline Queue ----
+    const OFFLINE_QUEUE_KEY = "qr_attendance_offline_queue";
+
+    function getOfflineQueue() {
+      try {
+        return JSON.parse(localStorage.getItem(OFFLINE_QUEUE_KEY)) || [];
+      } catch {
+        return [];
+      }
+    }
+
+    function saveOfflineQueue(queue) {
+      localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(queue));
+    }
+
+    function queueOfflineSubmission(entry) {
+      const queue = getOfflineQueue();
+      queue.push(entry);
+      saveOfflineQueue(queue);
+      updateNetworkBar();
+    }
+
+    function updateNetworkBar() {
+      const bar = document.getElementById("network-bar");
+      const queue = getOfflineQueue();
+
+      if (navigator.onLine) {
+        if (queue.length > 0) {
+          bar.textContent = `Syncing ${queue.length} saved record(s)...`;
+          bar.className = "fixed top-0 left-0 right-0 z-50 text-center text-sm font-semibold py-2 bg-yellow-500 text-red-900";
+        } else {
+          bar.textContent = "Connected to School Database";
+          bar.className = "fixed top-0 left-0 right-0 z-50 text-center text-sm font-semibold py-2 bg-green-600 text-white";
+        }
+      } else {
+        bar.textContent = "Offline - Attendance Saved Locally. Keep this page open.";
+        bar.className = "fixed top-0 left-0 right-0 z-50 text-center text-sm font-semibold py-2 bg-yellow-500 text-red-900";
+      }
+    }
+
+    // Attempts to push every queued record to Supabase. Uses the same
+    // lock-then-insert pattern as a live submission, so duplicates are
+    // still safely rejected by the database even if something was queued twice.
+    async function syncOfflineQueue() {
+      if (!navigator.onLine) return;
+      const queue = getOfflineQueue();
+      if (queue.length === 0) return;
+
+      updateNetworkBar();
+      const remaining = [];
+
+      for (const entry of queue) {
+        const { error: lockError } = await supabaseClient
+          .from("device_locks")
+          .insert({ event_id: entry.eventId, action: entry.action, device_fingerprint: entry.deviceId });
+
+        if (lockError) {
+          continue; // already synced earlier, or a genuine duplicate - safe to drop
+        }
+
+       let error;
+        if (entry.action === "checkout") {
+          const existing = await findExistingCheckinRecord(entry.eventId, entry.record.first_name, entry.record.last_name);
+          if (existing) {
+            ({ error } = await supabaseClient
+              .from("attendance_records")
+              .update({ check_out_time: entry.record.check_out_time })
+              .eq("id", existing.id));
+          } else {
+            ({ error } = await supabaseClient.from("attendance_records").insert(entry.record));
+          }
+        } else {
+          ({ error } = await supabaseClient.from("attendance_records").insert(entry.record));
+        }
+        if (error) {
+          console.error("Sync failed for queued record:", error.message);
+          // Roll back the lock we just claimed, so the retry isn't blocked by it
+          await supabaseClient
+            .from("device_locks")
+            .delete()
+            .eq("event_id", entry.eventId)
+            .eq("action", entry.action)
+            .eq("device_fingerprint", entry.deviceId);
+          remaining.push(entry); // keep it queued to retry later
+        }
+      }
+
+      saveOfflineQueue(remaining);
+      updateNetworkBar();
+    }
+
+    window.addEventListener("online", () => {
+      updateNetworkBar();
+      syncOfflineQueue();
+    });
+    window.addEventListener("offline", updateNetworkBar);
+
+    function showOfflineSavedMessage(action, targetEl = formWrapper) {
+      targetEl.innerHTML = `
+        <div class="text-center py-6">
+          <p class="text-2xl mb-2">📶</p>
+          <p class="text-lg font-semibold text-yellow-700">Saved locally — no connection detected</p>
+          <p class="text-sm text-gray-500 mt-1">Your ${action === "checkin" ? "Check-In" : "Check-Out"} will sync automatically once you're back online. Keep this page open if possible.</p>
+        </div>
+      `;
+    }
+    // ---- One-Touch Check-Out session ----
+    const oneTouchWrapper = document.getElementById("one-touch-wrapper");
+    let cachedSession = null;
+
+    function getSessionKey(evId) {
+      return `qr_attendance_session_${evId}`;
+    }
+
+    function saveSessionForEvent(evId, record) {
+      const sessionData = {
+        first_name: record.first_name,
+        middle_name: record.middle_name,
+        last_name: record.last_name,
+        department: record.department,
+        program: record.program,
+        year_level: record.year_level,
+        section: record.section
+      };
+      localStorage.setItem(getSessionKey(evId), JSON.stringify(sessionData));
+    }
+
+    function getSessionForEvent(evId) {
+      try {
+        const raw = localStorage.getItem(getSessionKey(evId));
+        return raw ? JSON.parse(raw) : null;
+      } catch {
+        return null;
+      }
+    }
+
+    // Finds an existing attendance row for this student that already has a
+    // check_in_time, so Check-Out can update it instead of creating a duplicate.
+    async function findExistingCheckinRecord(evId, firstName, lastName) {
+      const { data, error } = await supabaseClient
+        .from("attendance_records")
+        .select("*")
+        .eq("event_id", evId)
+        .not("check_in_time", "is", null);
+
+      if (error || !data) return null;
+
+      return data.find(row => namesMatch(
+        { firstName, lastName },
+        { firstName: row.first_name, lastName: row.last_name }
+      )) || null;
+    }
+
+    function showManualCheckoutForm() {
+      oneTouchWrapper.classList.add("hidden");
+      populateDepartments();
+      formWrapper.classList.remove("hidden");
     }
 
     // ---- Department -> Program dependent dropdown (open events) ----
@@ -213,20 +505,23 @@
       submitBtn.disabled = true;
       submitBtn.textContent = "Submitting...";
 
-      const deviceId = getDeviceFingerprint();
-
-      const { error: lockError } = await supabaseClient
-        .from("device_locks")
-        .insert({ event_id: eventId, action: action, device_fingerprint: deviceId });
-
-      if (lockError) {
-        messageEl.textContent = "⚠️ This device has already submitted attendance for this action.";
-        messageEl.className = "text-sm text-center mt-3 text-yellow-300 font-medium";
+      const geoCheck = await verifyGeofence();
+      if (!geoCheck.ok) {
+        showGeofenceWarning(geoCheck.reason);
         submitBtn.disabled = false;
         submitBtn.textContent = "Submit";
         return;
       }
 
+      const scheduleCheck = isWithinScheduleWindow();
+      if (!scheduleCheck.ok) {
+        showGeofenceWarning(scheduleCheck.reason);
+        submitBtn.disabled = false;
+        submitBtn.textContent = "Submit";
+        return;
+      }
+
+      const deviceId = getDeviceFingerprint();
       const record = {
         event_id: eventId,
         first_name: document.getElementById("first-name").value.trim(),
@@ -238,25 +533,74 @@
         section: document.getElementById("section").value.trim(),
         status: "Present"
       };
-
       if (action === "checkin") record.check_in_time = new Date().toISOString();
       else if (action === "checkout") record.check_out_time = new Date().toISOString();
 
-      const { error } = await supabaseClient.from("attendance_records").insert(record);
+      // Already offline -> skip straight to queuing, no point attempting a network call
+      if (!navigator.onLine) {
+        const existingQueue = getOfflineQueue();
+        const alreadyQueued = existingQueue.some(en => en.eventId === eventId && en.action === action && en.deviceId === deviceId);
+        if (alreadyQueued) {
+          messageEl.textContent = "⚠️ This device has already submitted attendance for this action (pending sync).";
+          messageEl.className = "text-sm text-center mt-3 text-yellow-300 font-medium";
+          submitBtn.disabled = false;
+          submitBtn.textContent = "Submit";
+          return;
+        }
+       queueOfflineSubmission({ eventId, action, deviceId, record });
+        if (action === "checkin") saveSessionForEvent(eventId, record);
+        showOfflineSavedMessage(action);
+        return;
+      }
 
-      if (error) {
-        messageEl.textContent = "❌ " + error.message;
-        messageEl.className = "text-sm text-center mt-3 text-yellow-300";
-        submitBtn.disabled = false;
-        submitBtn.textContent = "Submit";
-      } else {
-        formWrapper.innerHTML = `
-          <div class="text-center py-6">
-            <p class="text-2xl mb-2">✅</p>
-            <p class="text-lg font-semibold text-green-700">You're recorded for ${action === "checkin" ? "Check-In" : "Check-Out"}!</p>
-            <p class="text-sm text-gray-500 mt-1">${currentEvent.name}</p>
-          </div>
-        `;
+      try {
+        const { error: lockError } = await supabaseClient
+          .from("device_locks")
+          .insert({ event_id: eventId, action: action, device_fingerprint: deviceId });
+
+        if (lockError) {
+          messageEl.textContent = "⚠️ This device has already submitted attendance for this action.";
+          messageEl.className = "text-sm text-center mt-3 text-yellow-300 font-medium";
+          submitBtn.disabled = false;
+          submitBtn.textContent = "Submit";
+          return;
+        }
+
+        let error;
+        if (action === "checkout") {
+          const existing = await findExistingCheckinRecord(eventId, record.first_name, record.last_name);
+          if (existing) {
+            ({ error } = await supabaseClient
+              .from("attendance_records")
+              .update({ check_out_time: record.check_out_time })
+              .eq("id", existing.id));
+          } else {
+            ({ error } = await supabaseClient.from("attendance_records").insert(record));
+          }
+        } else {
+          ({ error } = await supabaseClient.from("attendance_records").insert(record));
+        }
+
+        if (error) {
+          messageEl.textContent = "❌ " + error.message;
+          messageEl.className = "text-sm text-center mt-3 text-yellow-300";
+          submitBtn.disabled = false;
+          submitBtn.textContent = "Submit";
+        } else {
+          if (action === "checkin") saveSessionForEvent(eventId, record);
+          formWrapper.innerHTML = `
+            <div class="text-center py-6">
+              <p class="text-2xl mb-2">✅</p>
+              <p class="text-lg font-semibold text-green-700">You're recorded for ${action === "checkin" ? "Check-In" : "Check-Out"}!</p>
+              <p class="text-sm text-gray-500 mt-1">${currentEvent.name}</p>
+            </div>
+          `;
+        }
+      } catch (networkErr) {
+        // A thrown exception here means the request itself failed mid-flight
+        // (e.g. connection dropped) — queue it instead of losing the data
+        queueOfflineSubmission({ eventId, action, deviceId, record });
+        showOfflineSavedMessage(action);
       }
     });
 
@@ -314,6 +658,18 @@
     }
 
     async function verifyAndSignIn(record) {
+      const geoCheck = await verifyGeofence();
+      if (!geoCheck.ok) {
+        showGeofenceWarning(geoCheck.reason);
+        return;
+      }
+
+      const scheduleCheck = isWithinScheduleWindow();
+      if (!scheduleCheck.ok) {
+        showGeofenceWarning(scheduleCheck.reason);
+        return;
+      }
+
       const deviceId = getDeviceFingerprint();
 
       const { error: lockError } = await supabaseClient
@@ -345,7 +701,94 @@
       }
     }
 
+    document.getElementById("one-touch-confirm-btn").addEventListener("click", async () => {
+      const btn = document.getElementById("one-touch-confirm-btn");
+      btn.disabled = true;
+      btn.textContent = "Submitting...";
+
+      const geoCheck = await verifyGeofence();
+      if (!geoCheck.ok) {
+        showGeofenceWarning(geoCheck.reason);
+        btn.disabled = false;
+        btn.textContent = "Confirm Check-Out";
+        return;
+      }
+
+      const scheduleCheck = isWithinScheduleWindow();
+      if (!scheduleCheck.ok) {
+        showGeofenceWarning(scheduleCheck.reason);
+        btn.disabled = false;
+        btn.textContent = "Confirm Check-Out";
+        return;
+      }
+
+      const deviceId = getDeviceFingerprint();
+      const record = {
+        event_id: eventId,
+        first_name: cachedSession.first_name,
+        middle_name: cachedSession.middle_name,
+        last_name: cachedSession.last_name,
+        department: cachedSession.department,
+        program: cachedSession.program,
+        year_level: cachedSession.year_level,
+        section: cachedSession.section,
+        status: "Present",
+        check_out_time: new Date().toISOString()
+      };
+
+      if (!navigator.onLine) {
+        queueOfflineSubmission({ eventId, action: "checkout", deviceId, record });
+        showOfflineSavedMessage("checkout", oneTouchWrapper);
+        return;
+      }
+
+      try {
+        const { error: lockError } = await supabaseClient
+          .from("device_locks")
+          .insert({ event_id: eventId, action: "checkout", device_fingerprint: deviceId });
+
+        if (lockError) {
+          messageEl.textContent = "⚠️ This device has already submitted attendance for this action.";
+          messageEl.className = "text-sm text-center mt-3 text-yellow-300 font-medium";
+          btn.disabled = false;
+          btn.textContent = "Confirm Check-Out";
+          return;
+        }
+
+        const existing = await findExistingCheckinRecord(eventId, record.first_name, record.last_name);
+        let error;
+        if (existing) {
+          ({ error } = await supabaseClient
+            .from("attendance_records")
+            .update({ check_out_time: record.check_out_time })
+            .eq("id", existing.id));
+        } else {
+          ({ error } = await supabaseClient.from("attendance_records").insert(record));
+        }
+
+        if (error) {
+          messageEl.textContent = "❌ " + error.message;
+          messageEl.className = "text-sm text-center mt-3 text-yellow-300";
+          btn.disabled = false;
+          btn.textContent = "Confirm Check-Out";
+        } else {
+          oneTouchWrapper.innerHTML = `
+            <div class="text-center py-6">
+              <p class="text-2xl mb-2">✅</p>
+              <p class="text-lg font-semibold text-green-700">You're recorded for Check-Out!</p>
+              <p class="text-sm text-gray-500 mt-1">${currentEvent.name}</p>
+            </div>
+          `;
+        }
+      } catch (networkErr) {
+        queueOfflineSubmission({ eventId, action: "checkout", deviceId, record });
+        showOfflineSavedMessage("checkout", oneTouchWrapper);
+      }
+    });
+
     init();
+    updateNetworkBar();
+    syncOfflineQueue();
   </script>
 </body>
 </html>

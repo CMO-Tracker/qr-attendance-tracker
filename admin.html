@@ -10,8 +10,10 @@
 </head>
 <body class="bg-gray-50 min-h-screen">
 
-  <header class="bg-red-800 border-b-4 border-yellow-500 py-4 px-6">
+ <header class="bg-red-800 border-b-4 border-yellow-500 py-4 px-6 flex justify-between items-center">
     <h1 class="text-white text-2xl font-bold">Admin Portal</h1>
+    <button onclick="supabaseClient.auth.signOut().then(() => window.location.href = 'admin-login.html')"
+      class="text-yellow-300 text-sm underline">Log Out</button>
   </header>
 
   <main class="max-w-2xl mx-auto p-6">
@@ -39,6 +41,49 @@
           <input type="date" id="event-date" required
             class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500" />
         </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Start Time</label>
+            <input type="datetime-local" id="start-time" required
+              class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">End Time</label>
+            <input type="datetime-local" id="end-time" required
+              class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+          </div>
+        </div>
+
+        <div class="border border-gray-200 rounded-lg p-3 bg-gray-50">
+          <p class="text-sm font-semibold text-red-800 mb-2">Geofence Location</p>
+
+          <button type="button" onclick="useCurrentLocation()"
+            class="w-full bg-yellow-500 hover:bg-yellow-600 text-red-900 font-semibold text-sm py-1.5 rounded-lg mb-2">
+            📍 Use Current Location
+          </button>
+          <p id="location-status" class="text-xs text-gray-500 mb-2"></p>
+
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-medium text-gray-600 mb-1">Latitude</label>
+              <input type="number" step="any" id="event-latitude" required
+                class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" placeholder="e.g. 10.9027" />
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-gray-600 mb-1">Longitude</label>
+              <input type="number" step="any" id="event-longitude" required
+                class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" placeholder="e.g. 123.1234" />
+            </div>
+          </div>
+
+          <div class="mt-2">
+            <label class="block text-xs font-medium text-gray-600 mb-1">Radius (meters)</label>
+            <input type="number" id="event-radius" value="100" required
+              class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
+          </div>
+        </div>
+
         <button type="submit"
           class="w-full bg-red-800 hover:bg-red-900 text-white font-semibold py-2 rounded-lg transition">
           Create Event
@@ -57,21 +102,74 @@
   </main>
 
   <script src="config.js"></script>
+  <script>
+    // Route protection: redirect to login if no active admin session
+    async function requireAuth() {
+      const { data: { session } } = await supabaseClient.auth.getSession();
+      if (!session) {
+        window.location.href = "admin-login.html";
+      }
+    }
+    requireAuth();
+  </script>
   <script src="nameParser.js"></script>
   <script>
     const form = document.getElementById("event-form");
     const messageEl = document.getElementById("form-message");
     const eventsListEl = document.getElementById("events-list");
 
+   // Uses the browser's Geolocation API to auto-fill lat/long from the
+    // device's current GPS position (works best on a phone, at the venue).
+    function useCurrentLocation() {
+      const statusEl = document.getElementById("location-status");
+
+      if (!navigator.geolocation) {
+        statusEl.textContent = "Geolocation is not supported on this browser.";
+        statusEl.className = "text-xs text-red-600 mb-2";
+        return;
+      }
+
+      statusEl.textContent = "Requesting location permission...";
+      statusEl.className = "text-xs text-gray-500 mb-2";
+
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          document.getElementById("event-latitude").value = position.coords.latitude;
+          document.getElementById("event-longitude").value = position.coords.longitude;
+          statusEl.textContent = `✅ Location captured (accuracy: ~${Math.round(position.coords.accuracy)}m)`;
+          statusEl.className = "text-xs text-green-700 mb-2";
+        },
+        (err) => {
+          statusEl.textContent = "❌ Could not get location: " + err.message + ". You can enter coordinates manually instead.";
+          statusEl.className = "text-xs text-red-600 mb-2";
+        },
+        { enableHighAccuracy: true, timeout: 10000 }
+      );
+    }
+
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
       const name = document.getElementById("event-name").value.trim();
       const eventType = document.getElementById("event-type").value;
       const eventDate = document.getElementById("event-date").value;
+      const startTime = document.getElementById("start-time").value;
+      const endTime = document.getElementById("end-time").value;
+      const latitude = parseFloat(document.getElementById("event-latitude").value);
+      const longitude = parseFloat(document.getElementById("event-longitude").value);
+      const radiusMeters = parseInt(document.getElementById("event-radius").value, 10);
 
       const { error } = await supabaseClient
         .from("events")
-        .insert({ name, event_type: eventType, event_date: eventDate });
+        .insert({
+          name,
+          event_type: eventType,
+          event_date: eventDate,
+          start_time: new Date(startTime).toISOString(),
+          end_time: new Date(endTime).toISOString(),
+          latitude,
+          longitude,
+          radius_meters: radiusMeters
+        });
 
       if (error) {
         messageEl.textContent = "❌ Error: " + error.message;
@@ -175,12 +273,15 @@ Maria Santos Reyes"
         wrapper.className = "flex flex-col items-center bg-gray-50 border border-gray-200 rounded-lg p-3";
         const label = action === 'checkin' ? 'Check-In' : action === 'checkout' ? 'Check-Out' : 'Sign-In';
 
-        wrapper.innerHTML = `
+       wrapper.innerHTML = `
           <p class="text-xs font-semibold text-red-800 mb-2">${label} QR</p>
           <img src="${dataUrl}" class="w-40 h-40 border border-gray-300 rounded" />
           <a href="${dataUrl}" download="${eventName.replace(/\s+/g, '-')}-${action}.png"
             class="text-xs mt-2 bg-red-800 hover:bg-red-900 text-white px-3 py-1 rounded">
             Download PNG
+          </a>
+          <a href="${url}" target="_blank" class="text-xs mt-2 text-blue-700 underline break-all text-center">
+            Open link directly →
           </a>
         `;
 

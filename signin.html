@@ -487,6 +487,50 @@
       return (hasCheckIn && hasCheckOut) ? "Present" : "Partial";
     }
 
+    // Core validation rules for a reflection answer's TEXT.
+    // Assumes the field is actually active — the wrapper function below
+    // handles deciding whether validation should run at all.
+    function validateReflectionText(text) {
+      const trimmed = text.trim();
+
+      if (trimmed.length < 25) {
+        return { ok: false, reason: "Your reflection is a bit too short. Please write at least a full sentence!" };
+      }
+
+      // Blocks a single character repeated 5+ times in a row (e.g. "jjjjjjjjjj", "...........")
+      if (/(.)\1{4,}/.test(trimmed)) {
+        return { ok: false, reason: "That doesn't look like a genuine reflection — please avoid repeated characters." };
+      }
+
+      // Requires at least 5 different letters used, to block keyboard-smashing like "asdfasdfasdf"
+      // Requires at least 5 different letters used, to block keyboard-smashing like "asdfasdfasdf"
+      const uniqueLetters = new Set((trimmed.toLowerCase().match(/[a-z]/g) || []));
+      if (uniqueLetters.size < 5) {
+        return { ok: false, reason: "That doesn't look like a genuine reflection — please write a real response." };
+      }
+
+      // Requires multiple words — a real sentence has spaces; one long
+      // unbroken blob of characters (even with varied letters) isn't a sentence
+      const wordCount = trimmed.split(/\s+/).filter(Boolean).length;
+      if (wordCount < 4) {
+        return { ok: false, reason: "Your reflection is a bit too short. Please write at least a full sentence!" };
+      }
+
+      return { ok: true };
+    }
+
+    // Wrapper that decides WHETHER validation should even run.
+    // Returns { ok: true } immediately (skipping all checks) if this event
+    // has no custom question configured, or the field isn't present/visible
+    // on the current form — so normal check-ins are never affected.
+    function validateReflectionField(inputEl) {
+      if (!currentEvent.custom_question) return { ok: true };
+      if (!inputEl) return { ok: true };
+      if (inputEl.offsetParent === null) return { ok: true }; // hidden (display:none via our .hidden class)
+
+      return validateReflectionText(inputEl.value);
+    }
+
     // Finds an existing attendance row for this student that already has a
     // check_in_time, so Check-Out can update it instead of creating a duplicate.
     async function findExistingCheckinRecord(evId, firstName, lastName) {
@@ -565,6 +609,14 @@
       const scheduleCheck = isWithinScheduleWindow();
       if (!scheduleCheck.ok) {
         showGeofenceWarning(scheduleCheck.reason);
+        submitBtn.disabled = false;
+        submitBtn.textContent = "Submit";
+        return;
+      }
+
+      const reflectionCheck = validateReflectionField(document.getElementById("custom-question-input"));
+      if (!reflectionCheck.ok) {
+        alert(reflectionCheck.reason);
         submitBtn.disabled = false;
         submitBtn.textContent = "Submit";
         return;
@@ -730,13 +782,10 @@
       `;
 
       document.getElementById("closed-confirm-btn").addEventListener("click", () => {
-        if (currentEvent.custom_question) {
-          const response = document.getElementById("closed-custom-response").value.trim();
-          if (!response) {
-            messageEl.textContent = "Please answer the question before confirming.";
-            messageEl.className = "text-sm text-center mt-3 text-yellow-300";
-            return;
-          }
+        const reflectionCheck = validateReflectionField(document.getElementById("closed-custom-response"));
+        if (!reflectionCheck.ok) {
+          alert(reflectionCheck.reason);
+          return;
         }
         verifyAndSignIn(record);
       });
@@ -807,6 +856,14 @@
       const scheduleCheck = isWithinScheduleWindow();
       if (!scheduleCheck.ok) {
         showGeofenceWarning(scheduleCheck.reason);
+        btn.disabled = false;
+        btn.textContent = "Confirm Check-Out";
+        return;
+      }
+
+      const reflectionCheck = validateReflectionField(document.getElementById("one-touch-question-input"));
+      if (!reflectionCheck.ok) {
+        alert(reflectionCheck.reason);
         btn.disabled = false;
         btn.textContent = "Confirm Check-Out";
         return;

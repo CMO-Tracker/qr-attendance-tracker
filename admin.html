@@ -277,6 +277,7 @@
           <div class="mt-3 border-t pt-3">
             <div class="flex gap-2 flex-wrap items-center">
               <button onclick="toggleEditEvent('${ev.id}')" class="text-xs text-red-800 underline font-medium">Edit Event</button>
+              <button onclick="deleteEvent('${ev.id}', '${escapeQuotes(ev.name)}')" class="text-xs text-red-600 underline font-medium">Delete Event</button>
               <span class="text-gray-300">|</span>
               <button onclick="setOverride('${ev.id}', 'force_open')" class="text-xs bg-green-100 hover:bg-green-200 text-green-800 px-2 py-1 rounded">Force Open Now</button>
               <button onclick="setOverride('${ev.id}', 'force_closed')" class="text-xs bg-red-100 hover:bg-red-200 text-red-800 px-2 py-1 rounded">Force Close Now</button>
@@ -379,33 +380,39 @@ Maria Santos Reyes"
     async function saveEventEdit(eventId) {
       const msgEl = document.getElementById(`edit-message-${eventId}`);
       const name = document.getElementById(`edit-name-${eventId}`).value.trim();
-      const startTime = document.getElementById(`edit-start-${eventId}`).value;
-      const endTime = document.getElementById(`edit-end-${eventId}`).value;
+      const startTimeRaw = document.getElementById(`edit-start-${eventId}`).value;
+      const endTimeRaw = document.getElementById(`edit-end-${eventId}`).value;
       const latitude = parseFloat(document.getElementById(`edit-lat-${eventId}`).value);
       const longitude = parseFloat(document.getElementById(`edit-lng-${eventId}`).value);
       const radiusMeters = parseInt(document.getElementById(`edit-radius-${eventId}`).value, 10);
       const customQuestion = document.getElementById(`edit-question-${eventId}`).value.trim();
 
-      const { error } = await supabaseClient
-        .from("events")
-        .update({
-          name,
-          start_time: new Date(startTime).toISOString(),
-          end_time: new Date(endTime).toISOString(),
-          latitude: isNaN(latitude) ? null : latitude,
-          longitude: isNaN(longitude) ? null : longitude,
-          radius_meters: isNaN(radiusMeters) ? 100 : radiusMeters,
-          custom_question: customQuestion || null
-        })
-        .eq("id", eventId);
+      try {
+        const { error } = await supabaseClient
+          .from("events")
+          .update({
+            name,
+            start_time: startTimeRaw ? new Date(startTimeRaw).toISOString() : null,
+            end_time: endTimeRaw ? new Date(endTimeRaw).toISOString() : null,
+            latitude: isNaN(latitude) ? null : latitude,
+            longitude: isNaN(longitude) ? null : longitude,
+            radius_meters: isNaN(radiusMeters) ? 100 : radiusMeters,
+            custom_question: customQuestion || null
+          })
+          .eq("id", eventId);
 
-      if (error) {
-        msgEl.textContent = "❌ " + error.message;
+        if (error) {
+          msgEl.textContent = "❌ " + error.message;
+          msgEl.className = "text-xs text-red-600";
+          return;
+        }
+
+        loadEvents();
+      } catch (err) {
+        // Catches things like an invalid/blank date, so a save never fails silently again
+        msgEl.textContent = "❌ " + err.message;
         msgEl.className = "text-xs text-red-600";
-        return;
       }
-
-      loadEvents();
     }
 
     // Sets or clears the manual open/close override on an event.
@@ -420,6 +427,25 @@ Maria Santos Reyes"
         alert("Error updating override: " + error.message);
         return;
       }
+      loadEvents();
+    }
+
+    async function deleteEvent(eventId, eventName) {
+      const confirmed = confirm(
+        `Permanently delete "${eventName}"?\n\nThis will also delete ALL attendance records, roster entries, and device locks for this event. This cannot be undone.`
+      );
+      if (!confirmed) return;
+
+      const { error } = await supabaseClient
+        .from("events")
+        .delete()
+        .eq("id", eventId);
+
+      if (error) {
+        alert("Error deleting event: " + error.message);
+        return;
+      }
+
       loadEvents();
     }
 

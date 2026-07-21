@@ -75,6 +75,11 @@
           <input type="text" id="section" required class="w-full border border-gray-300 rounded-lg px-3 py-2" />
         </div>
 
+        <div id="custom-question-wrapper" class="hidden">
+          <label class="block text-sm font-medium text-gray-700 mb-1" id="custom-question-label"></label>
+          <textarea id="custom-question-input" rows="3" class="w-full border border-gray-300 rounded-lg px-3 py-2"></textarea>
+        </div>
+
         <button type="submit" class="w-full bg-red-800 hover:bg-red-900 text-white font-semibold py-2 rounded-lg mt-2">
           Submit
         </button>
@@ -89,6 +94,11 @@
       <div class="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-4 text-center">
         <p class="text-lg font-semibold text-gray-800" id="one-touch-name"></p>
         <p class="text-sm text-gray-500 mt-1" id="one-touch-details"></p>
+      </div>
+
+      <div id="one-touch-question-wrapper" class="hidden text-left mb-3">
+        <label class="block text-sm font-medium text-gray-700 mb-1" id="one-touch-question-label"></label>
+        <textarea id="one-touch-question-input" rows="3" class="w-full border border-gray-300 rounded-lg px-3 py-2"></textarea>
       </div>
 
       <button id="one-touch-confirm-btn"
@@ -182,11 +192,25 @@
           `${cachedSession.first_name} ${cachedSession.middle_name || ''} ${cachedSession.last_name}`.replace(/\s+/g, ' ').trim();
         document.getElementById("one-touch-details").textContent =
           [cachedSession.department, cachedSession.program, cachedSession.year_level, cachedSession.section].filter(Boolean).join(' · ');
+
+        if (currentEvent.custom_question) {
+          document.getElementById("one-touch-question-label").textContent = currentEvent.custom_question;
+          document.getElementById("one-touch-question-wrapper").classList.remove("hidden");
+          document.getElementById("one-touch-question-input").required = true;
+        }
+
         oneTouchWrapper.classList.remove("hidden");
       } else {
         document.getElementById("event-title").textContent = currentEvent.name;
         document.getElementById("action-label").textContent = action === "checkin" ? "Check-In" : "Check-Out";
         populateDepartments();
+
+        if (currentEvent.custom_question) {
+          document.getElementById("custom-question-label").textContent = currentEvent.custom_question;
+          document.getElementById("custom-question-wrapper").classList.remove("hidden");
+          document.getElementById("custom-question-input").required = true;
+        }
+
         formWrapper.classList.remove("hidden");
       }
     }
@@ -270,6 +294,13 @@
     // Returns { ok: true } if "now" falls within the event's start/end
     // window, or { ok: false, reason: "..." } if it's too early or too late.
     function isWithinScheduleWindow() {
+      if (currentEvent.status_override === "force_open") {
+        return { ok: true };
+      }
+      if (currentEvent.status_override === "force_closed") {
+        return { ok: false, reason: "This event has been manually closed by the admin. Attendance is not currently being accepted." };
+      }
+
       if (!currentEvent.start_time || !currentEvent.end_time) {
         return { ok: true }; // no schedule set on this event -> skip check
       }
@@ -366,9 +397,11 @@
         if (entry.action === "checkout") {
           const existing = await findExistingCheckinRecord(entry.eventId, entry.record.first_name, entry.record.last_name);
           if (existing) {
+            const updateData = { check_out_time: entry.record.check_out_time, status: determineOpenEventStatus(true, true) };
+            if (entry.record.custom_response !== undefined) updateData.custom_response = entry.record.custom_response;
             ({ error } = await supabaseClient
               .from("attendance_records")
-              .update({ check_out_time: entry.record.check_out_time })
+              .update(updateData)
               .eq("id", existing.id));
           } else {
             ({ error } = await supabaseClient.from("attendance_records").insert(entry.record));
@@ -436,6 +469,13 @@
       } catch {
         return null;
       }
+    }
+
+    // Open events only get full "Present" credit once BOTH check-in and
+    // check-out exist. Anything less is "Partial" — this fixes the bug
+    // where checking in alone used to show as fully Present immediately.
+    function determineOpenEventStatus(hasCheckIn, hasCheckOut) {
+      return (hasCheckIn && hasCheckOut) ? "Present" : "Partial";
     }
 
     // Finds an existing attendance row for this student that already has a
@@ -531,12 +571,16 @@
         program: document.getElementById("program").value,
         year_level: document.getElementById("year-level").value,
         section: document.getElementById("section").value.trim(),
-        status: "Present"
+        status: determineOpenEventStatus(action === "checkin", action === "checkout")
       };
+
+      if (currentEvent.custom_question) {
+        record.custom_response = document.getElementById("custom-question-input").value.trim();
+      }
+
       if (action === "checkin") record.check_in_time = new Date().toISOString();
       else if (action === "checkout") record.check_out_time = new Date().toISOString();
 
-      // Already offline -> skip straight to queuing, no point attempting a network call
       if (!navigator.onLine) {
         const existingQueue = getOfflineQueue();
         const alreadyQueued = existingQueue.some(en => en.eventId === eventId && en.action === action && en.deviceId === deviceId);
@@ -547,7 +591,7 @@
           submitBtn.textContent = "Submit";
           return;
         }
-       queueOfflineSubmission({ eventId, action, deviceId, record });
+        queueOfflineSubmission({ eventId, action, deviceId, record });
         if (action === "checkin") saveSessionForEvent(eventId, record);
         showOfflineSavedMessage(action);
         return;
@@ -570,10 +614,9 @@
         if (action === "checkout") {
           const existing = await findExistingCheckinRecord(eventId, record.first_name, record.last_name);
           if (existing) {
-            ({ error } = await supabaseClient
-              .from("attendance_records")
-              .update({ check_out_time: record.check_out_time })
-              .eq("id", existing.id));
+            const updateData = { check_out_time: record.check_out_time, status: determineOpenEventStatus(true, true) };
+            if (currentEvent.custom_question) updateData.custom_response = record.custom_response;
+            ({ error } = await supabaseClient.from("attendance_records").update(updateData).eq("id", existing.id));
           } else {
             ({ error } = await supabaseClient.from("attendance_records").insert(record));
           }
@@ -597,9 +640,8 @@
           `;
         }
       } catch (networkErr) {
-        // A thrown exception here means the request itself failed mid-flight
-        // (e.g. connection dropped) — queue it instead of losing the data
         queueOfflineSubmission({ eventId, action, deviceId, record });
+        if (action === "checkin") saveSessionForEvent(eventId, record);
         showOfflineSavedMessage(action);
       }
     });
@@ -639,7 +681,7 @@
         messageEl.textContent = "Name not found on the roster. Please check your spelling or see the event admin.";
         messageEl.className = "text-sm text-center mt-3 text-yellow-300";
       } else if (matches.length === 1) {
-        verifyAndSignIn(matches[0]);
+        showClosedConfirmCard(matches[0]);
       } else {
         currentMatches = matches;
         messageEl.textContent = "Multiple matches found — please select your name:";
@@ -654,7 +696,41 @@
     });
 
     function selectMatch(idx) {
-      verifyAndSignIn(currentMatches[idx]);
+      showClosedConfirmCard(currentMatches[idx]);
+    }
+
+    // Shows a "confirm your name" card, with the custom question attached
+    // if one is set, before actually signing the student in.
+    function showClosedConfirmCard(record) {
+      const resultsEl = document.getElementById("match-results");
+      const questionHtml = currentEvent.custom_question ? `
+        <div class="mt-3 text-left">
+          <label class="block text-sm font-medium text-gray-700 mb-1">${currentEvent.custom_question}</label>
+          <textarea id="closed-custom-response" rows="3" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"></textarea>
+        </div>
+      ` : '';
+
+      resultsEl.innerHTML = `
+        <div class="bg-gray-50 border border-gray-200 rounded-lg p-3 mt-2 text-left">
+          <p class="text-sm font-semibold text-gray-800">Confirm: ${record.last_name}, ${record.first_name} ${record.middle_name || ''}</p>
+          ${questionHtml}
+          <button id="closed-confirm-btn" class="w-full bg-red-800 hover:bg-red-900 text-white font-semibold py-2 rounded-lg mt-3">
+            Confirm & Sign In
+          </button>
+        </div>
+      `;
+
+      document.getElementById("closed-confirm-btn").addEventListener("click", () => {
+        if (currentEvent.custom_question) {
+          const response = document.getElementById("closed-custom-response").value.trim();
+          if (!response) {
+            messageEl.textContent = "Please answer the question before confirming.";
+            messageEl.className = "text-sm text-center mt-3 text-yellow-300";
+            return;
+          }
+        }
+        verifyAndSignIn(record);
+      });
     }
 
     async function verifyAndSignIn(record) {
@@ -682,9 +758,14 @@
         return;
       }
 
+      const updateData = { status: "Present", check_in_time: new Date().toISOString() };
+      if (currentEvent.custom_question) {
+        updateData.custom_response = document.getElementById("closed-custom-response").value.trim();
+      }
+
       const { error } = await supabaseClient
         .from("attendance_records")
-        .update({ status: "Present", check_in_time: new Date().toISOString() })
+        .update(updateData)
         .eq("id", record.id);
 
       if (error) {
@@ -732,9 +813,13 @@
         program: cachedSession.program,
         year_level: cachedSession.year_level,
         section: cachedSession.section,
-        status: "Present",
+        status: determineOpenEventStatus(false, true),
         check_out_time: new Date().toISOString()
       };
+
+      if (currentEvent.custom_question) {
+        record.custom_response = document.getElementById("one-touch-question-input").value.trim();
+      }
 
       if (!navigator.onLine) {
         queueOfflineSubmission({ eventId, action: "checkout", deviceId, record });
@@ -758,10 +843,9 @@
         const existing = await findExistingCheckinRecord(eventId, record.first_name, record.last_name);
         let error;
         if (existing) {
-          ({ error } = await supabaseClient
-            .from("attendance_records")
-            .update({ check_out_time: record.check_out_time })
-            .eq("id", existing.id));
+          const updateData = { check_out_time: record.check_out_time, status: determineOpenEventStatus(true, true) };
+          if (currentEvent.custom_question) updateData.custom_response = record.custom_response;
+          ({ error } = await supabaseClient.from("attendance_records").update(updateData).eq("id", existing.id));
         } else {
           ({ error } = await supabaseClient.from("attendance_records").insert(record));
         }

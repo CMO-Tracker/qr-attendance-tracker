@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Attendance Insights</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body class="bg-gray-50 min-h-screen">
+
+  <header class="bg-red-800 border-b-4 border-yellow-500 py-4 px-6 flex justify-between items-center">
+    <h1 class="text-white text-2xl font-bold">Attendance Insights</h1>
+    <a href="admin.html" class="text-yellow-300 text-sm underline">← Back to Admin</a>
+  </header>
+
+  <main class="max-w-5xl mx-auto p-6">
+
+    <div id="loading" class="text-center text-gray-500">Loading historical data...</div>
+
+    <div id="content" class="hidden">
+
+      <!-- Filters -->
+      <div class="bg-white rounded-xl shadow p-4 border border-gray-200 mb-6 flex flex-wrap gap-3 items-end">
+        <div>
+          <label class="block text-xs font-medium text-gray-600 mb-1">Department</label>
+          <select id="filter-dept" class="border border-gray-300 rounded-lg px-3 py-1.5 text-sm"><option value="">All</option></select>
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-gray-600 mb-1">Program</label>
+          <select id="filter-program" class="border border-gray-300 rounded-lg px-3 py-1.5 text-sm"><option value="">All</option></select>
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-gray-600 mb-1">Year Level</label>
+          <select id="filter-year" class="border border-gray-300 rounded-lg px-3 py-1.5 text-sm"><option value="">All</option></select>
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-gray-600 mb-1">Section</label>
+          <select id="filter-section" class="border border-gray-300 rounded-lg px-3 py-1.5 text-sm"><option value="">All</option></select>
+        </div>
+      </div>
+
+      <!-- Summary cards -->
+      <div class="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-6" id="summary-cards"></div>
+
+      <div class="flex flex-wrap gap-3 mb-6">
+        <button onclick="exportInsightsCSV()"
+          class="bg-yellow-500 hover:bg-yellow-600 text-red-900 font-semibold text-sm px-4 py-2 rounded-lg">
+          Export CSV
+        </button>
+        <button onclick="syncToGoogleSheets()"
+          class="bg-red-800 hover:bg-red-900 text-white font-semibold text-sm px-4 py-2 rounded-lg">
+          Sync to Google Sheets
+        </button>
+        <input type="url" id="sheets-webhook-url" placeholder="Paste your Apps Script Web App URL here..."
+          class="flex-1 min-w-[250px] border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+      </div>
+      <p id="sync-status" class="text-xs mb-6"></p>
+
+      <!-- Closed-event rate chart -->
+      <div class="bg-white rounded-xl shadow p-6 border border-gray-200 mb-6">
+        <h2 class="text-lg font-semibold text-red-800 mb-1">Closed-Event Attendance Rate Over Time</h2>
+        <p class="text-xs text-gray-500 mb-4">Based on pre-loaded rosters (Present ÷ Total Rostered) — Retreats, etc.</p>
+        <canvas id="rate-chart" height="90"></canvas>
+        <p id="rate-chart-empty" class="hidden text-sm text-gray-400 text-center py-6">No closed-event data matches these filters.</p>
+      </div>
+
+      <!-- Open-event turnout table -->
+      <div class="bg-white rounded-xl shadow p-6 border border-gray-200 mb-6">
+        <h2 class="text-lg font-semibold text-red-800 mb-1">Open-Event Turnout Over Time</h2>
+        <p class="text-xs text-gray-500 mb-4">Raw headcounts (no roster baseline exists for open events, e.g. Masses)</p>
+        <table class="w-full text-sm">
+          <thead class="bg-gray-100 text-gray-600 text-left">
+            <tr><th class="px-3 py-2">Event</th><th class="px-3 py-2">Date</th><th class="px-3 py-2">Checked In</th><th class="px-3 py-2">Checked Out</th></tr>
+          </thead>
+          <tbody id="open-events-body"></tbody>
+        </table>
+      </div>
+
+      <!-- Per-student summary -->
+      <div class="bg-white rounded-xl shadow border border-gray-200 overflow-x-auto">
+        <div class="p-4 border-b border-gray-100">
+          <h2 class="text-lg font-semibold text-red-800">Student Attendance Summary</h2>
+          <p class="text-xs text-gray-500">Sorted lowest attendance rate first. Rate is closed-event only, for the reason explained above. Below 50% is flagged.</p>
+        </div>
+        <table class="w-full text-sm">
+          <thead class="bg-gray-100 text-gray-600 text-left">
+            <tr>
+              <th class="px-3 py-2">Name</th>
+              <th class="px-3 py-2">Dept / Program</th>
+              <th class="px-3 py-2">Year / Section</th>
+              <th class="px-3 py-2">Closed Events (Present/Rostered)</th>
+              <th class="px-3 py-2">Rate</th>
+              <th class="px-3 py-2">Open-Event Check-Ins</th>
+            </tr>
+          </thead>
+          <tbody id="student-summary-body"></tbody>
+        </table>
+      </div>
+
+    </div>
+  </main>
+
+  <script src="config.js"></script>
+  <script>
+    let currentAdminRole = null;
+    async function requireAuth() {
+      const { data: { session } } = await supabaseClient.auth.getSession();
+      if (!session) { window.location.href = "admin-login.html"; return; }
+      const { data: roleRow, error } = await supabaseClient
+        .from("admin_roles").select("role").eq("id", session.user.id).single();
+      if (error || !roleRow) {
+        alert("Your account has no admin role assigned. Contact the coordinator.");
+        await supabaseClient.auth.signOut();
+        window.location.href = "admin-login.html";
+        return;
+      }
+      currentAdminRole = roleRow.role;
+      loadInsights(); // both roles can view insights — no gating needed here
+    }
+    requireAuth();
+  </script>
+  <script src="nameParser.js"></script>
+  <script>
+    let allData = [];
+    let rateChart = null;
+
+    async function loadInsights() {
+      // Embeds the related event's name/date/type via the event_id foreign key
+      const { data, error } = await supabaseClient
+        .from("attendance_records")
+        .select("*, events(name, event_date, event_type)");
+
+      if (error) {
+        document.getElementById("loading").textContent = "Error loading data: " + error.message;
+        return;
+      }
+
+      allData = data.filter(r => r.events); // drop any orphaned records with no matching event
+      populateFilters();
+      renderAll();
+
+      document.getElementById("loading").classList.add("hidden");
+      document.getElementById("content").classList.remove("hidden");
+
+      ["filter-dept", "filter-program", "filter-year", "filter-section"].forEach(id => {
+        document.getElementById(id).addEventListener("change", renderAll);
+      });
+    }
+
+    function populateFilters() {
+      const fill = (id, key) => {
+        const values = [...new Set(allData.map(r => r[key]).filter(Boolean))].sort();
+        const select = document.getElementById(id);
+        values.forEach(v => {
+          const opt = document.createElement("option");
+          opt.value = v; opt.textContent = v;
+          select.appendChild(opt);
+        });
+      };
+      fill("filter-dept", "department");
+      fill("filter-program", "program");
+      fill("filter-year", "year_level");
+      fill("filter-section", "section");
+    }
+
+    function getFilteredData() {
+      const dept = document.getElementById("filter-dept").value;
+      const program = document.getElementById("filter-program").value;
+      const year = document.getElementById("filter-year").value;
+      const section = document.getElementById("filter-section").value;
+
+      return allData.filter(r =>
+        (!dept || r.department === dept) &&
+        (!program || r.program === program) &&
+        (!year || r.year_level === year) &&
+        (!section || r.section === section)
+      );
+    }
+
+    function renderAll() {
+      const filtered = getFilteredData();
+      renderSummaryCards(filtered);
+      renderRateChart(filtered);
+      renderOpenEventsTable(filtered);
+      renderStudentSummary(filtered);
+    }
+
+    function renderSummaryCards(filtered) {
+      const uniqueEvents = new Set(filtered.map(r => r.event_id)).size;
+      const uniqueStudents = new Set(filtered.map(r => normalizeForMatch(r.first_name) + "|" + normalizeForMatch(r.last_name))).size;
+
+      const closedRecords = filtered.filter(r => r.events.event_type === "closed");
+      const closedPresent = closedRecords.filter(r => r.status === "Present").length;
+      const overallRate = closedRecords.length > 0 ? Math.round((closedPresent / closedRecords.length) * 100) : null;
+
+      document.getElementById("summary-cards").innerHTML = `
+        ${card("Events (matching filters)", uniqueEvents)}
+        ${card("Unique Students", uniqueStudents)}
+        ${card("Overall Closed-Event Rate", overallRate !== null ? overallRate + "%" : "—", overallRate !== null && overallRate < 50 ? "text-red-600" : "text-green-700")}
+      `;
+    }
+
+    function card(label, value, colorClass = "text-gray-800") {
+      return `
+        <div class="bg-white rounded-xl shadow p-4 text-center border border-gray-200">
+          <p class="text-2xl font-bold ${colorClass}">${value}</p>
+          <p class="text-xs text-gray-500 mt-1">${label}</p>
+        </div>
+      `;
+    }
+
+    function renderRateChart(filtered) {
+      const closed = filtered.filter(r => r.events.event_type === "closed");
+
+      // Group by event
+      const byEvent = {};
+      closed.forEach(r => {
+        if (!byEvent[r.event_id]) {
+          byEvent[r.event_id] = { name: r.events.name, date: r.events.event_date, present: 0, total: 0 };
+        }
+        byEvent[r.event_id].total++;
+        if (r.status === "Present") byEvent[r.event_id].present++;
+      });
+
+      const rows = Object.values(byEvent).sort((a, b) => new Date(a.date) - new Date(b.date));
+      const emptyMsg = document.getElementById("rate-chart-empty");
+      const canvas = document.getElementById("rate-chart");
+
+      if (rows.length === 0) {
+        emptyMsg.classList.remove("hidden");
+        canvas.classList.add("hidden");
+        if (rateChart) { rateChart.destroy(); rateChart = null; }
+        return;
+      }
+      emptyMsg.classList.add("hidden");
+      canvas.classList.remove("hidden");
+
+      const labels = rows.map(r => `${r.name} (${r.date})`);
+      const rates = rows.map(r => Math.round((r.present / r.total) * 100));
+
+      if (rateChart) rateChart.destroy();
+      rateChart = new Chart(canvas, {
+        type: "bar",
+        data: {
+          labels,
+          datasets: [{
+            label: "Attendance Rate (%)",
+            data: rates,
+            backgroundColor: "#facc15", // gold
+            borderColor: "#991b1b",     // red
+            borderWidth: 1
+          }]
+        },
+        options: {
+          scales: { y: { beginAtZero: true, max: 100 } },
+          plugins: { legend: { display: false } }
+        }
+      });
+    }
+
+    function renderOpenEventsTable(filtered) {
+      const open = filtered.filter(r => r.events.event_type === "open");
+      const byEvent = {};
+      open.forEach(r => {
+        if (!byEvent[r.event_id]) {
+          byEvent[r.event_id] = { name: r.events.name, date: r.events.event_date, checkedIn: 0, checkedOut: 0 };
+        }
+        if (r.check_in_time) byEvent[r.event_id].checkedIn++;
+        if (r.check_out_time) byEvent[r.event_id].checkedOut++;
+      });
+
+      const rows = Object.values(byEvent).sort((a, b) => new Date(a.date) - new Date(b.date));
+      const tbody = document.getElementById("open-events-body");
+
+      if (rows.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="4" class="text-center text-gray-400 py-4">No open-event data matches these filters.</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = rows.map(r => `
+        <tr class="border-t border-gray-100">
+          <td class="px-3 py-2">${r.name}</td>
+          <td class="px-3 py-2">${r.date}</td>
+          <td class="px-3 py-2">${r.checkedIn}</td>
+          <td class="px-3 py-2">${r.checkedOut}</td>
+        </tr>
+      `).join("");
+    }
+
+    function renderStudentSummary(filtered) {
+      const students = {};
+
+      filtered.forEach(r => {
+        const key = normalizeForMatch(r.first_name) + "|" + normalizeForMatch(r.last_name);
+        if (!students[key]) {
+          students[key] = {
+            firstName: r.first_name, lastName: r.last_name, middleName: r.middle_name,
+            department: r.department, program: r.program, yearLevel: r.year_level, section: r.section,
+            closedPresent: 0, closedRostered: 0, openCheckins: 0
+          };
+        }
+        const s = students[key];
+        // Keep the most recently-seen dept/program/year/section for display
+        if (r.department) s.department = r.department;
+        if (r.program) s.program = r.program;
+        if (r.year_level) s.yearLevel = r.year_level;
+        if (r.section) s.section = r.section;
+
+        if (r.events.event_type === "closed") {
+          s.closedRostered++;
+          if (r.status === "Present") s.closedPresent++;
+        } else if (r.check_in_time) {
+          s.openCheckins++;
+        }
+      });
+
+      const rows = Object.values(students).map(s => ({
+        ...s,
+        rate: s.closedRostered > 0 ? (s.closedPresent / s.closedRostered) * 100 : null
+      })).sort((a, b) => {
+        // Students with a computable rate come first, lowest rate first;
+        // students with no closed-event history sort to the bottom
+        if (a.rate === null && b.rate === null) return 0;
+        if (a.rate === null) return 1;
+        if (b.rate === null) return -1;
+        return a.rate - b.rate;
+      });
+
+      const tbody = document.getElementById("student-summary-body");
+      if (rows.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6" class="text-center text-gray-400 py-4">No students match these filters.</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = rows.map(s => `
+        <tr class="border-t border-gray-100">
+          <td class="px-3 py-2">${s.lastName}, ${s.firstName} ${s.middleName || ''}</td>
+          <td class="px-3 py-2">${[s.department, s.program].filter(Boolean).join(' / ') || '—'}</td>
+          <td class="px-3 py-2">${[s.yearLevel, s.section].filter(Boolean).join(' / ') || '—'}</td>
+          <td class="px-3 py-2">${s.closedRostered > 0 ? `${s.closedPresent}/${s.closedRostered}` : '—'}</td>
+          <td class="px-3 py-2 font-semibold ${s.rate !== null && s.rate < 50 ? 'text-red-600' : s.rate !== null ? 'text-green-700' : 'text-gray-400'}">
+            ${s.rate !== null ? Math.round(s.rate) + '%' : '—'}
+          </td>
+          <td class="px-3 py-2">${s.openCheckins}</td>
+        </tr>
+      `).join("");
+    }
+    // Rebuilds the exact rows shown in the student summary table, as plain arrays
+    function getStudentSummaryRows() {
+      const filtered = getFilteredData();
+      const students = {};
+
+      filtered.forEach(r => {
+        const key = normalizeForMatch(r.first_name) + "|" + normalizeForMatch(r.last_name);
+        if (!students[key]) {
+          students[key] = {
+            firstName: r.first_name, lastName: r.last_name, middleName: r.middle_name,
+            department: r.department, program: r.program, yearLevel: r.year_level, section: r.section,
+            closedPresent: 0, closedRostered: 0, openCheckins: 0
+          };
+        }
+        const s = students[key];
+        if (r.department) s.department = r.department;
+        if (r.program) s.program = r.program;
+        if (r.year_level) s.yearLevel = r.year_level;
+        if (r.section) s.section = r.section;
+        if (r.events.event_type === "closed") {
+          s.closedRostered++;
+          if (r.status === "Present") s.closedPresent++;
+        } else if (r.check_in_time) {
+          s.openCheckins++;
+        }
+      });
+
+      return Object.values(students).map(s => [
+        s.lastName, s.firstName, s.middleName || '', s.department || '', s.program || '',
+        s.yearLevel || '', s.section || '',
+        s.closedRostered > 0 ? `${s.closedPresent}/${s.closedRostered}` : '',
+        s.closedRostered > 0 ? Math.round((s.closedPresent / s.closedRostered) * 100) : '',
+        s.openCheckins
+      ]);
+    }
+
+    function exportInsightsCSV() {
+      const headers = ["Last Name", "First Name", "Middle Name", "Department", "Program", "Year Level", "Section", "Closed Present/Rostered", "Closed Rate (%)", "Open Check-Ins"];
+      const rows = getStudentSummaryRows();
+
+      const csvContent = [headers, ...rows]
+        .map(row => row.map(val => `"${String(val).replace(/"/g, '""')}"`).join(","))
+        .join("\n");
+
+      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "attendance-insights.csv";
+      link.click();
+      URL.revokeObjectURL(url);
+    }
+
+    // Pushes the same rows straight into a Google Sheet via a webhook
+    // (see setup instructions for the Apps Script side of this)
+    async function syncToGoogleSheets() {
+      const url = document.getElementById("sheets-webhook-url").value.trim();
+      const statusEl = document.getElementById("sync-status");
+
+      if (!url) {
+        statusEl.textContent = "Paste your Google Apps Script Web App URL first.";
+        statusEl.className = "text-xs mb-6 text-red-600";
+        return;
+      }
+
+      localStorage.setItem("qr_attendance_sheets_webhook", url);
+      statusEl.textContent = "Syncing...";
+      statusEl.className = "text-xs mb-6 text-gray-500";
+
+      const rows = getStudentSummaryRows();
+
+      try {
+        // Apps Script web apps don't return readable CORS headers to fetch(),
+        // so we use no-cors: the request still executes server-side, we just
+        // can't read a response back — that's expected and fine here.
+        await fetch(url, {
+          method: "POST",
+          mode: "no-cors",
+          headers: { "Content-Type": "text/plain;charset=utf-8" },
+          body: JSON.stringify({ rows })
+        });
+        statusEl.textContent = `✅ Sent ${rows.length} row(s) to Google Sheets. Check your sheet to confirm.`;
+        statusEl.className = "text-xs mb-6 text-green-700";
+      } catch (err) {
+        statusEl.textContent = "❌ Sync failed: " + err.message;
+        statusEl.className = "text-xs mb-6 text-red-600";
+      }
+    }
+
+    // Restore a previously-saved webhook URL, if any
+    const savedWebhook = localStorage.getItem("qr_attendance_sheets_webhook");
+    if (savedWebhook) document.getElementById("sheets-webhook-url").value = savedWebhook;
+  </script>
+</body>
+</html>

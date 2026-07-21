@@ -7,18 +7,22 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
 </head>
 <body class="bg-gray-50 min-h-screen">
 
  <header class="bg-red-800 border-b-4 border-yellow-500 py-4 px-6 flex justify-between items-center">
     <h1 class="text-white text-2xl font-bold">Admin Portal</h1>
-    <button onclick="supabaseClient.auth.signOut().then(() => window.location.href = 'admin-login.html')"
-      class="text-yellow-300 text-sm underline">Log Out</button>
+    <div class="flex items-center gap-4">
+      <a href="insights.html" class="text-yellow-300 text-sm underline">Insights</a>
+      <button onclick="supabaseClient.auth.signOut().then(() => window.location.href = 'admin-login.html')"
+        class="text-yellow-300 text-sm underline">Log Out</button>
+    </div>
   </header>
 
   <main class="max-w-2xl mx-auto p-6">
 
-    <section class="bg-white rounded-xl shadow p-6 border border-gray-200 mb-8">
+    <section id="create-event-section" class="bg-white rounded-xl shadow p-6 border border-gray-200 mb-8">
       <h2 class="text-lg font-semibold text-red-800 mb-4">Create New Event</h2>
       <form id="event-form" class="space-y-4">
         <div>
@@ -42,18 +46,19 @@
             class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500" />
         </div>
 
-        <div class="grid grid-cols-2 gap-3">
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Start Time</label>
-            <input type="datetime-local" id="start-time" required
-              class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+        <p class="text-xs text-gray-500 mb-2">Leave blank to disable location-based checking for this event.</p>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-medium text-gray-600 mb-1">Latitude</label>
+              <input type="number" step="any" id="event-latitude"
+                class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" placeholder="e.g. 10.9027" />
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-gray-600 mb-1">Longitude</label>
+              <input type="number" step="any" id="event-longitude"
+                class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" placeholder="e.g. 123.1234" />
+            </div>
           </div>
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">End Time</label>
-            <input type="datetime-local" id="end-time" required
-              class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
-          </div>
-        </div>
 
         <div class="border border-gray-200 rounded-lg p-3 bg-gray-50">
           <p class="text-sm font-semibold text-red-800 mb-2">Geofence Location</p>
@@ -84,6 +89,13 @@
           </div>
         </div>
 
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Custom Question (optional)</label>
+          <textarea id="event-custom-question" rows="2"
+            placeholder="e.g. What did you learn during the homily? Leave blank to disable."
+            class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"></textarea>
+        </div>
+
         <button type="submit"
           class="w-full bg-red-800 hover:bg-red-900 text-white font-semibold py-2 rounded-lg transition">
           Create Event
@@ -103,12 +115,31 @@
 
   <script src="config.js"></script>
   <script>
-    // Route protection: redirect to login if no active admin session
+    let currentAdminRole = null;
+
+    // Route protection: redirect to login if no active session OR no recognized role
     async function requireAuth() {
       const { data: { session } } = await supabaseClient.auth.getSession();
       if (!session) {
         window.location.href = "admin-login.html";
+        return;
       }
+
+      const { data: roleRow, error } = await supabaseClient
+        .from("admin_roles")
+        .select("role")
+        .eq("id", session.user.id)
+        .single();
+
+      if (error || !roleRow) {
+        alert("Your account has no admin role assigned. Contact the coordinator.");
+        await supabaseClient.auth.signOut();
+        window.location.href = "admin-login.html";
+        return;
+      }
+
+      currentAdminRole = roleRow.role;
+      onRoleReady();
     }
     requireAuth();
   </script>
@@ -154,9 +185,13 @@
       const eventDate = document.getElementById("event-date").value;
       const startTime = document.getElementById("start-time").value;
       const endTime = document.getElementById("end-time").value;
-      const latitude = parseFloat(document.getElementById("event-latitude").value);
-      const longitude = parseFloat(document.getElementById("event-longitude").value);
-      const radiusMeters = parseInt(document.getElementById("event-radius").value, 10);
+      const rawLat = parseFloat(document.getElementById("event-latitude").value);
+      const rawLng = parseFloat(document.getElementById("event-longitude").value);
+      const latitude = isNaN(rawLat) ? null : rawLat;
+      const longitude = isNaN(rawLng) ? null : rawLng;
+      const radiusMeters = parseInt(document.getElementById("event-radius").value, 10) || 100;
+
+      const customQuestion = document.getElementById("event-custom-question").value.trim();
 
       const { error } = await supabaseClient
         .from("events")
@@ -168,7 +203,8 @@
           end_time: new Date(endTime).toISOString(),
           latitude,
           longitude,
-          radius_meters: radiusMeters
+          radius_meters: radiusMeters,
+          custom_question: customQuestion || null
         });
 
       if (error) {
@@ -198,15 +234,26 @@
         return;
       }
 
+      const isCoordinator = currentAdminRole === 'coordinator';
+
       eventsListEl.innerHTML = data.map(ev => `
         <div class="border border-gray-200 rounded-lg p-3">
           <div class="flex justify-between items-center mb-2">
             <div>
               <p class="font-medium text-gray-800">${ev.name}</p>
-              <p class="text-xs text-gray-500">${ev.event_date} · ${ev.event_type === 'open' ? 'Open Event' : 'Closed Event'}</p>
+              <p class="text-xs text-gray-500">
+                ${ev.event_date} · ${ev.event_type === 'open' ? 'Open Event' : 'Closed Event'}
+                ${ev.status_override === 'force_open' ? ' · <span class="font-semibold text-green-600">🔓 Forced Open</span>' : ''}
+                ${ev.status_override === 'force_closed' ? ' · <span class="font-semibold text-red-600">🔒 Forced Closed</span>' : ''}
+              </p>
             </div>
           </div>
 
+          <a href="report.html?event=${ev.id}" class="text-xs text-red-800 underline font-medium block mb-2">
+            View Report →
+          </a>
+
+          ${!isCoordinator ? '' : `
           <div class="flex gap-2 flex-wrap">
             ${ev.event_type === 'open' ? `
               <button onclick="generateQR('${ev.id}', 'checkin', '${escapeQuotes(ev.name)}')"
@@ -227,9 +274,55 @@
 
           <div id="qr-container-${ev.id}" class="flex gap-4 flex-wrap mt-3"></div>
 
-          <a href="report.html?event=${ev.id}" class="text-xs text-red-800 underline font-medium block mt-2">
-            View Report →
-          </a>
+          <div class="mt-3 border-t pt-3">
+            <div class="flex gap-2 flex-wrap items-center">
+              <button onclick="toggleEditEvent('${ev.id}')" class="text-xs text-red-800 underline font-medium">Edit Event</button>
+              <span class="text-gray-300">|</span>
+              <button onclick="setOverride('${ev.id}', 'force_open')" class="text-xs bg-green-100 hover:bg-green-200 text-green-800 px-2 py-1 rounded">Force Open Now</button>
+              <button onclick="setOverride('${ev.id}', 'force_closed')" class="text-xs bg-red-100 hover:bg-red-200 text-red-800 px-2 py-1 rounded">Force Close Now</button>
+              ${ev.status_override ? `<button onclick="setOverride('${ev.id}', null)" class="text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-2 py-1 rounded">Clear Override</button>` : ''}
+            </div>
+
+            <div id="edit-panel-${ev.id}" class="hidden mt-3 space-y-2 bg-gray-50 border border-gray-200 rounded-lg p-3">
+              <div>
+                <label class="block text-xs font-medium text-gray-600 mb-1">Event Name</label>
+                <input type="text" id="edit-name-${ev.id}" value="${escapeQuotes(ev.name)}" class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
+              </div>
+              <div class="grid grid-cols-2 gap-2">
+                <div>
+                  <label class="block text-xs font-medium text-gray-600 mb-1">Start Time</label>
+                  <input type="datetime-local" id="edit-start-${ev.id}" value="${isoToDatetimeLocalValue(ev.start_time)}" class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
+                </div>
+                <div>
+                  <label class="block text-xs font-medium text-gray-600 mb-1">End Time</label>
+                  <input type="datetime-local" id="edit-end-${ev.id}" value="${isoToDatetimeLocalValue(ev.end_time)}" class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
+                </div>
+              </div>
+              <div class="grid grid-cols-3 gap-2">
+                <div>
+                  <label class="block text-xs font-medium text-gray-600 mb-1">Latitude</label>
+                  <input type="number" step="any" id="edit-lat-${ev.id}" value="${ev.latitude ?? ''}" class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
+                </div>
+                <div>
+                  <label class="block text-xs font-medium text-gray-600 mb-1">Longitude</label>
+                  <input type="number" step="any" id="edit-lng-${ev.id}" value="${ev.longitude ?? ''}" class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
+                </div>
+                <div>
+                  <label class="block text-xs font-medium text-gray-600 mb-1">Radius (m)</label>
+                  <input type="number" id="edit-radius-${ev.id}" value="${ev.radius_meters ?? 100}" class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
+                </div>
+              </div>
+              <div>
+                <label class="block text-xs font-medium text-gray-600 mb-1">Custom Question (optional)</label>
+                <textarea id="edit-question-${ev.id}" rows="2" class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm">${ev.custom_question || ''}</textarea>
+              </div>
+              <div class="flex gap-2">
+                <button onclick="saveEventEdit('${ev.id}')" class="text-xs bg-red-800 hover:bg-red-900 text-white font-semibold px-3 py-1.5 rounded-lg">Save Changes</button>
+                <button onclick="toggleEditEvent('${ev.id}')" class="text-xs text-gray-500 underline">Cancel</button>
+              </div>
+              <p id="edit-message-${ev.id}" class="text-xs"></p>
+            </div>
+          </div>
 
           ${ev.event_type === 'closed' ? `
             <div class="mt-3 border-t pt-3">
@@ -237,7 +330,7 @@
                 Manage Roster
               </button>
               <div id="roster-panel-${ev.id}" class="hidden mt-2 space-y-2">
-                <textarea id="roster-input-${ev.id}" rows="5"
+               <textarea id="roster-input-${ev.id}" rows="5"
                   placeholder="Paste one name per line, e.g.:
 Dela Cruz, Juan Miguel
 Maria Santos Reyes"
@@ -246,17 +339,88 @@ Maria Santos Reyes"
                   class="text-xs bg-yellow-500 hover:bg-yellow-600 text-red-900 font-semibold px-3 py-1.5 rounded-lg">
                   Add to Roster (mark Absent)
                 </button>
+
+                <div class="border-t border-gray-200 pt-2 mt-2">
+                  <p class="text-xs text-gray-500 mb-1">— or upload a CSV (one name per row, no header) —</p>
+                  <input type="file" id="roster-file-${ev.id}" accept=".csv"
+                    class="text-xs w-full" />
+                  <button onclick="uploadRosterCSV('${ev.id}')"
+                    class="text-xs bg-yellow-500 hover:bg-yellow-600 text-red-900 font-semibold px-3 py-1.5 rounded-lg mt-1">
+                    Upload CSV (mark Absent)
+                  </button>
+                </div>
                 <p id="roster-message-${ev.id}" class="text-xs"></p>
                 <div id="roster-list-${ev.id}" class="text-xs text-gray-600 mt-2"></div>
               </div>
             </div>
           ` : ''}
+          `}
         </div>
       `).join("");
     }
 
     function escapeQuotes(str) {
       return str.replace(/'/g, "\\'");
+    }
+
+    // Converts a stored UTC ISO timestamp into the local-time value format
+    // the <input type="datetime-local"> field expects for pre-filling.
+    function isoToDatetimeLocalValue(iso) {
+      if (!iso) return "";
+      const d = new Date(iso);
+      const pad = n => String(n).padStart(2, '0');
+      return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    }
+
+    function toggleEditEvent(eventId) {
+      document.getElementById(`edit-panel-${eventId}`).classList.toggle("hidden");
+    }
+
+    async function saveEventEdit(eventId) {
+      const msgEl = document.getElementById(`edit-message-${eventId}`);
+      const name = document.getElementById(`edit-name-${eventId}`).value.trim();
+      const startTime = document.getElementById(`edit-start-${eventId}`).value;
+      const endTime = document.getElementById(`edit-end-${eventId}`).value;
+      const latitude = parseFloat(document.getElementById(`edit-lat-${eventId}`).value);
+      const longitude = parseFloat(document.getElementById(`edit-lng-${eventId}`).value);
+      const radiusMeters = parseInt(document.getElementById(`edit-radius-${eventId}`).value, 10);
+      const customQuestion = document.getElementById(`edit-question-${eventId}`).value.trim();
+
+      const { error } = await supabaseClient
+        .from("events")
+        .update({
+          name,
+          start_time: new Date(startTime).toISOString(),
+          end_time: new Date(endTime).toISOString(),
+          latitude: isNaN(latitude) ? null : latitude,
+          longitude: isNaN(longitude) ? null : longitude,
+          radius_meters: isNaN(radiusMeters) ? 100 : radiusMeters,
+          custom_question: customQuestion || null
+        })
+        .eq("id", eventId);
+
+      if (error) {
+        msgEl.textContent = "❌ " + error.message;
+        msgEl.className = "text-xs text-red-600";
+        return;
+      }
+
+      loadEvents();
+    }
+
+    // Sets or clears the manual open/close override on an event.
+    // value is 'force_open', 'force_closed', or null to clear it.
+    async function setOverride(eventId, value) {
+      const { error } = await supabaseClient
+        .from("events")
+        .update({ status_override: value })
+        .eq("id", eventId);
+
+      if (error) {
+        alert("Error updating override: " + error.message);
+        return;
+      }
+      loadEvents();
     }
 
     function generateQR(eventId, action, eventName) {
@@ -332,6 +496,61 @@ Maria Santos Reyes"
         textarea.value = "";
         loadRoster(eventId);
       }
+    }
+    
+    function uploadRosterCSV(eventId) {
+      const fileInput = document.getElementById(`roster-file-${eventId}`);
+      const msgEl = document.getElementById(`roster-message-${eventId}`);
+      const file = fileInput.files[0];
+
+      if (!file) {
+        msgEl.textContent = "Please choose a CSV file first.";
+        msgEl.className = "text-xs text-red-600";
+        return;
+      }
+
+      Papa.parse(file, {
+        skipEmptyLines: true,
+        complete: async function (results) {
+          // Each row is an array like ["Dela Cruz, Juan Miguel"] -- take the first column
+          const names = results.data
+            .map(row => (row[0] || "").trim())
+            .filter(Boolean);
+
+          if (names.length === 0) {
+            msgEl.textContent = "No names found in that file.";
+            msgEl.className = "text-xs text-red-600";
+            return;
+          }
+
+          const rows = names.map(line => {
+            const parsed = parseName(line);
+            return {
+              event_id: eventId,
+              first_name: parsed.firstName,
+              middle_name: parsed.middleName,
+              last_name: parsed.lastName,
+              status: "Absent"
+            };
+          });
+
+          const { error } = await supabaseClient.from("attendance_records").insert(rows);
+
+          if (error) {
+            msgEl.textContent = "❌ " + error.message;
+            msgEl.className = "text-xs text-red-600";
+          } else {
+            msgEl.textContent = `✅ Added ${rows.length} student(s) from CSV.`;
+            msgEl.className = "text-xs text-green-700";
+            fileInput.value = "";
+            loadRoster(eventId);
+          }
+        },
+        error: function (err) {
+          msgEl.textContent = "❌ Could not read file: " + err.message;
+          msgEl.className = "text-xs text-red-600";
+        }
+      });
     }
 
     async function loadRoster(eventId) {
@@ -412,7 +631,12 @@ Maria Santos Reyes"
       loadRoster(eventId);
     }
 
-    loadEvents();
+    function onRoleReady() {
+      if (currentAdminRole !== 'coordinator') {
+        document.getElementById("create-event-section").classList.add("hidden");
+      }
+      loadEvents();
+    }
   </script>
 </body>
 </html>

@@ -21,8 +21,15 @@
     <div id="report-content" class="hidden">
       <!-- Event summary -->
       <div class="bg-white rounded-xl shadow p-6 border border-gray-200 mb-6">
-        <h2 id="event-name" class="text-lg font-semibold text-red-800 mb-1"></h2>
-        <p id="event-meta" class="text-sm text-gray-500 mb-4"></p>
+        <div class="flex justify-between items-start">
+          <div>
+            <h2 id="event-name" class="text-lg font-semibold text-red-800 mb-1"></h2>
+            <p id="event-meta" class="text-sm text-gray-500 mb-4"></p>
+          </div>
+          <span id="live-badge" class="text-xs font-semibold px-2 py-1 rounded-full bg-gray-200 text-gray-500">
+            ○ Connecting...
+          </span>
+        </div>
         <div id="stats" class="grid grid-cols-2 sm:grid-cols-4 gap-3"></div>
       </div>
 
@@ -65,6 +72,8 @@
               <th class="px-3 py-2">Status</th>
               <th class="px-3 py-2">Check-In</th>
               <th class="px-3 py-2">Check-Out</th>
+              <th class="px-3 py-2">Response</th>
+              <th class="px-3 py-2">Actions</th>
             </tr>
           </thead>
           <tbody id="records-body"></tbody>
@@ -76,12 +85,31 @@
 
   <script src="config.js"></script>
   <script>
-    // Route protection: redirect to login if no active admin session
+    let currentAdminRole = null;
+
+    // Route protection: redirect to login if no active session OR no recognized role
     async function requireAuth() {
       const { data: { session } } = await supabaseClient.auth.getSession();
       if (!session) {
         window.location.href = "admin-login.html";
+        return;
       }
+
+      const { data: roleRow, error } = await supabaseClient
+        .from("admin_roles")
+        .select("role")
+        .eq("id", session.user.id)
+        .single();
+
+      if (error || !roleRow) {
+        alert("Your account has no admin role assigned. Contact the coordinator.");
+        await supabaseClient.auth.signOut();
+        window.location.href = "admin-login.html";
+        return;
+      }
+
+      currentAdminRole = roleRow.role;
+      onRoleReady();
     }
     requireAuth();
   </script>
@@ -131,6 +159,41 @@
       document.getElementById("search-input").addEventListener("input", applyFilters);
       document.getElementById("status-filter").addEventListener("change", applyFilters);
       document.getElementById("dept-filter").addEventListener("change", applyFilters);
+
+      subscribeToLiveUpdates();
+    }
+
+    // Subscribes to any insert/update/delete on attendance_records for THIS
+    // event only, and re-fetches automatically whenever one happens.
+    function subscribeToLiveUpdates() {
+      const badge = document.getElementById("live-badge");
+
+      supabaseClient
+        .channel(`attendance-${eventId}`)
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "attendance_records",
+            filter: `event_id=eq.${eventId}`
+          },
+          (payload) => {
+            refreshRecords();
+            // Brief visual pulse so it's obvious something just happened
+            badge.textContent = "🟢 Live update!";
+            setTimeout(() => { badge.textContent = "🟢 Live"; }, 1500);
+          }
+        )
+        .subscribe((status) => {
+          if (status === "SUBSCRIBED") {
+            badge.textContent = "🟢 Live";
+            badge.className = "text-xs font-semibold px-2 py-1 rounded-full bg-green-100 text-green-700";
+          } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+            badge.textContent = "⚠️ Live updates unavailable";
+            badge.className = "text-xs font-semibold px-2 py-1 rounded-full bg-yellow-100 text-yellow-700";
+          }
+        });
     }
 
     function renderStats() {
@@ -192,21 +255,118 @@
     function renderTable(records) {
       const tbody = document.getElementById("records-body");
       if (records.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="7" class="text-center text-gray-400 py-6">No matching records.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="9" class="text-center text-gray-400 py-6">No matching records.</td></tr>`;
         return;
       }
 
       tbody.innerHTML = records.map(r => `
-        <tr class="border-t border-gray-100">
-          <td class="px-3 py-2">${r.last_name}, ${r.first_name} ${r.middle_name || ''}</td>
-          <td class="px-3 py-2">${r.department || '—'}</td>
-          <td class="px-3 py-2">${r.program || '—'}</td>
-          <td class="px-3 py-2">${[r.year_level, r.section].filter(Boolean).join(' / ') || '—'}</td>
-          <td class="px-3 py-2 ${r.status === 'Present' ? 'text-green-700' : 'text-gray-400'}">${r.status}</td>
+        <tr class="border-t border-gray-100" id="row-${r.id}">
+          <td class="px-3 py-2" id="cell-name-${r.id}">${r.last_name}, ${r.first_name} ${r.middle_name || ''}</td>
+          <td class="px-3 py-2" id="cell-dept-${r.id}">${r.department || '—'}</td>
+          <td class="px-3 py-2" id="cell-program-${r.id}">${r.program || '—'}</td>
+          <td class="px-3 py-2" id="cell-yearsec-${r.id}">${[r.year_level, r.section].filter(Boolean).join(' / ') || '—'}</td>
+          <td class="px-3 py-2 ${r.status === 'Present' ? 'text-green-700' : 'text-gray-400'}" id="cell-status-${r.id}">${r.status}</td>
           <td class="px-3 py-2">${formatTime(r.check_in_time)}</td>
           <td class="px-3 py-2">${formatTime(r.check_out_time)}</td>
+          <td class="px-3 py-2 max-w-[150px]">
+            ${r.custom_response ? `
+              <details>
+                <summary class="text-red-800 underline cursor-pointer text-xs">View</summary>
+                <p class="text-xs text-gray-700 mt-1 whitespace-pre-wrap">${r.custom_response}</p>
+              </details>
+            ` : '—'}
+          </td>
+          <td class="px-3 py-2 whitespace-nowrap" id="cell-actions-${r.id}">
+            ${currentAdminRole === 'coordinator' ? `
+              <button onclick="startEditRow('${r.id}')" class="text-red-800 underline text-xs">Edit</button>
+              <button onclick="deleteRecord('${r.id}')" class="text-red-600 underline text-xs ml-2">Delete</button>
+            ` : `<span class="text-gray-300 text-xs">View only</span>`}
+          </td>
         </tr>
       `).join("");
+    }
+
+    // Swaps one row's display cells for editable inputs
+    function startEditRow(recordId) {
+      const record = allRecords.find(r => r.id === recordId);
+      if (!record) return;
+
+      document.getElementById(`cell-name-${recordId}`).innerHTML = `
+        <input id="edit-first-${recordId}" value="${record.first_name || ''}" class="border rounded px-1 py-0.5 w-16 text-xs" placeholder="First" />
+        <input id="edit-middle-${recordId}" value="${record.middle_name || ''}" class="border rounded px-1 py-0.5 w-14 text-xs" placeholder="Middle" />
+        <input id="edit-last-${recordId}" value="${record.last_name || ''}" class="border rounded px-1 py-0.5 w-16 text-xs" placeholder="Last" />
+      `;
+      document.getElementById(`cell-dept-${recordId}`).innerHTML =
+        `<input id="edit-dept-${recordId}" value="${record.department || ''}" class="border rounded px-1 py-0.5 w-20 text-xs" />`;
+      document.getElementById(`cell-program-${recordId}`).innerHTML =
+        `<input id="edit-program-${recordId}" value="${record.program || ''}" class="border rounded px-1 py-0.5 w-20 text-xs" />`;
+      document.getElementById(`cell-yearsec-${recordId}`).innerHTML = `
+        <input id="edit-year-${recordId}" value="${record.year_level || ''}" class="border rounded px-1 py-0.5 w-14 text-xs" placeholder="Year" />
+        <input id="edit-section-${recordId}" value="${record.section || ''}" class="border rounded px-1 py-0.5 w-12 text-xs" placeholder="Sec" />
+      `;
+      document.getElementById(`cell-status-${recordId}`).innerHTML = `
+        <select id="edit-status-${recordId}" class="border rounded px-1 py-0.5 text-xs">
+          <option value="Present" ${record.status === 'Present' ? 'selected' : ''}>Present</option>
+          <option value="Absent" ${record.status === 'Absent' ? 'selected' : ''}>Absent</option>
+        </select>
+      `;
+      document.getElementById(`cell-actions-${recordId}`).innerHTML = `
+        <button onclick="saveEditRow('${recordId}')" class="text-green-700 underline text-xs">Save</button>
+        <button onclick="renderTable(allRecords)" class="text-gray-500 underline text-xs ml-2">Cancel</button>
+      `;
+    }
+
+    async function saveEditRow(recordId) {
+      const updated = {
+        first_name: document.getElementById(`edit-first-${recordId}`).value.trim(),
+        middle_name: document.getElementById(`edit-middle-${recordId}`).value.trim(),
+        last_name: document.getElementById(`edit-last-${recordId}`).value.trim(),
+        department: document.getElementById(`edit-dept-${recordId}`).value.trim(),
+        program: document.getElementById(`edit-program-${recordId}`).value.trim(),
+        year_level: document.getElementById(`edit-year-${recordId}`).value.trim(),
+        section: document.getElementById(`edit-section-${recordId}`).value.trim(),
+        status: document.getElementById(`edit-status-${recordId}`).value
+      };
+
+      const { error } = await supabaseClient
+        .from("attendance_records")
+        .update(updated)
+        .eq("id", recordId);
+
+      if (error) {
+        alert("Error saving: " + error.message);
+        return;
+      }
+
+      await refreshRecords();
+    }
+
+    async function deleteRecord(recordId) {
+      if (!confirm("Permanently delete this attendance record?")) return;
+
+      const { error } = await supabaseClient
+        .from("attendance_records")
+        .delete()
+        .eq("id", recordId);
+
+      if (error) {
+        alert("Error deleting: " + error.message);
+        return;
+      }
+
+      await refreshRecords();
+    }
+
+    // Re-fetches records from Supabase and re-renders everything that depends on them
+    async function refreshRecords() {
+      const { data, error } = await supabaseClient
+        .from("attendance_records").select("*").eq("event_id", eventId)
+        .order("last_name");
+
+      if (error) return;
+      allRecords = data;
+      renderStats();
+      applyFilters(); // re-runs the table render through whatever search/status/dept filters are active
     }
 
     function formatTime(isoString) {
@@ -228,12 +388,13 @@
         return matchesSearch && matchesStatus && matchesDept;
       });
 
-      const headers = ["Last Name", "First Name", "Middle Name", "Department", "Program", "Year Level", "Section", "Status", "Check-In", "Check-Out"];
+      const headers = ["Last Name", "First Name", "Middle Name", "Department", "Program", "Year Level", "Section", "Status", "Check-In", "Check-Out", "Response"];
       const rows = filtered.map(r => [
         r.last_name, r.first_name, r.middle_name || '', r.department || '', r.program || '',
         r.year_level || '', r.section || '', r.status,
         r.check_in_time ? new Date(r.check_in_time).toLocaleString() : '',
-        r.check_out_time ? new Date(r.check_out_time).toLocaleString() : ''
+        r.check_out_time ? new Date(r.check_out_time).toLocaleString() : '',
+        r.custom_response || ''
       ]);
 
       // Wrap each value in quotes and escape any internal quotes, so commas/names with quotes don't break the CSV
@@ -250,6 +411,11 @@
       URL.revokeObjectURL(url);
     }
 
+    function onRoleReady() {
+      // report.html content loads for both roles — just re-render once
+      // role is confirmed, so Edit/Delete buttons show/hide correctly
+      if (allRecords.length > 0) renderTable(allRecords);
+    }
     init();
   </script>
 </body>

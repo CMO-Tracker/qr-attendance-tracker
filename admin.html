@@ -92,6 +92,36 @@
           </div>
         </div>
 
+        <div class="border border-gray-200 rounded-lg p-3 bg-gray-50">
+          <label class="flex items-center gap-2 text-sm font-semibold text-red-800">
+            <input type="checkbox" id="event-strict-timings" class="rounded" />
+            Enable Strict Phase Timings <span class="text-xs font-normal text-gray-500">(Open events only)</span>
+          </label>
+
+          <div id="strict-timings-fields" class="hidden mt-3 space-y-2">
+            <div class="grid grid-cols-2 gap-2">
+              <div>
+                <label class="block text-xs font-medium text-gray-600 mb-1">Check-In Opens</label>
+                <input type="datetime-local" id="checkin-start" class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
+              </div>
+              <div>
+                <label class="block text-xs font-medium text-gray-600 mb-1">Check-In Closes</label>
+                <input type="datetime-local" id="checkin-end" class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
+              </div>
+            </div>
+            <div class="grid grid-cols-2 gap-2">
+              <div>
+                <label class="block text-xs font-medium text-gray-600 mb-1">Check-Out Opens</label>
+                <input type="datetime-local" id="checkout-start" class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
+              </div>
+              <div>
+                <label class="block text-xs font-medium text-gray-600 mb-1">Check-Out Closes</label>
+                <input type="datetime-local" id="checkout-end" class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
+              </div>
+            </div>
+          </div>
+        </div>
+
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-1">Custom Question (optional)</label>
           <textarea id="event-custom-question" rows="2"
@@ -149,6 +179,10 @@
   <script src="nameParser.js"></script>
   <script>
     const form = document.getElementById("event-form");
+
+    document.getElementById("event-strict-timings").addEventListener("change", function () {
+      document.getElementById("strict-timings-fields").classList.toggle("hidden", !this.checked);
+    });
     const messageEl = document.getElementById("form-message");
     const eventsListEl = document.getElementById("events-list");
 
@@ -195,6 +229,11 @@
       const radiusMeters = parseInt(document.getElementById("event-radius").value, 10) || 100;
 
       const customQuestion = document.getElementById("event-custom-question").value.trim();
+      const useStrictTimings = document.getElementById("event-strict-timings").checked;
+      const checkinStart = document.getElementById("checkin-start").value;
+      const checkinEnd = document.getElementById("checkin-end").value;
+      const checkoutStart = document.getElementById("checkout-start").value;
+      const checkoutEnd = document.getElementById("checkout-end").value;
 
       const { error } = await supabaseClient
         .from("events")
@@ -207,7 +246,12 @@
           latitude,
           longitude,
           radius_meters: radiusMeters,
-          custom_question: customQuestion || null
+          custom_question: customQuestion || null,
+          use_strict_timings: useStrictTimings,
+          checkin_start: useStrictTimings && checkinStart ? new Date(checkinStart).toISOString() : null,
+          checkin_end: useStrictTimings && checkinEnd ? new Date(checkinEnd).toISOString() : null,
+          checkout_start: useStrictTimings && checkoutStart ? new Date(checkoutStart).toISOString() : null,
+          checkout_end: useStrictTimings && checkoutEnd ? new Date(checkoutEnd).toISOString() : null
         });
 
       if (error) {
@@ -217,6 +261,7 @@
         messageEl.textContent = "✅ Event created!";
         messageEl.className = "text-sm mt-2 text-green-700";
         form.reset();
+        document.getElementById("strict-timings-fields").classList.add("hidden");
         loadEvents();
       }
     });
@@ -316,6 +361,37 @@
                   <input type="number" id="edit-radius-${ev.id}" value="${ev.radius_meters ?? 100}" class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
                 </div>
               </div>
+              <div class="border border-gray-200 rounded-lg p-2">
+                <label class="flex items-center gap-2 text-xs font-semibold text-red-800">
+                  <input type="checkbox" id="edit-strict-${ev.id}" ${ev.use_strict_timings ? 'checked' : ''}
+                    onchange="document.getElementById('edit-strict-fields-${ev.id}').classList.toggle('hidden', !this.checked)"
+                    class="rounded" />
+                  Enable Strict Phase Timings
+                </label>
+                <div id="edit-strict-fields-${ev.id}" class="${ev.use_strict_timings ? '' : 'hidden'} mt-2 space-y-2">
+                  <div class="grid grid-cols-2 gap-2">
+                    <div>
+                      <label class="block text-xs font-medium text-gray-600 mb-1">Check-In Opens</label>
+                      <input type="datetime-local" id="edit-checkin-start-${ev.id}" value="${isoToDatetimeLocalValue(ev.checkin_start)}" class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
+                    </div>
+                    <div>
+                      <label class="block text-xs font-medium text-gray-600 mb-1">Check-In Closes</label>
+                      <input type="datetime-local" id="edit-checkin-end-${ev.id}" value="${isoToDatetimeLocalValue(ev.checkin_end)}" class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
+                    </div>
+                  </div>
+                  <div class="grid grid-cols-2 gap-2">
+                    <div>
+                      <label class="block text-xs font-medium text-gray-600 mb-1">Check-Out Opens</label>
+                      <input type="datetime-local" id="edit-checkout-start-${ev.id}" value="${isoToDatetimeLocalValue(ev.checkout_start)}" class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
+                    </div>
+                    <div>
+                      <label class="block text-xs font-medium text-gray-600 mb-1">Check-Out Closes</label>
+                      <input type="datetime-local" id="edit-checkout-end-${ev.id}" value="${isoToDatetimeLocalValue(ev.checkout_end)}" class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
               <div>
                 <label class="block text-xs font-medium text-gray-600 mb-1">Custom Question (optional)</label>
                 <textarea id="edit-question-${ev.id}" rows="2" class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm">${ev.custom_question || ''}</textarea>
@@ -389,6 +465,11 @@ Maria Santos Reyes"
       const longitude = parseFloat(document.getElementById(`edit-lng-${eventId}`).value);
       const radiusMeters = parseInt(document.getElementById(`edit-radius-${eventId}`).value, 10);
       const customQuestion = document.getElementById(`edit-question-${eventId}`).value.trim();
+      const useStrictTimings = document.getElementById(`edit-strict-${eventId}`).checked;
+      const checkinStartRaw = document.getElementById(`edit-checkin-start-${eventId}`).value;
+      const checkinEndRaw = document.getElementById(`edit-checkin-end-${eventId}`).value;
+      const checkoutStartRaw = document.getElementById(`edit-checkout-start-${eventId}`).value;
+      const checkoutEndRaw = document.getElementById(`edit-checkout-end-${eventId}`).value;
 
       try {
         const { error } = await supabaseClient
@@ -400,7 +481,12 @@ Maria Santos Reyes"
             latitude: isNaN(latitude) ? null : latitude,
             longitude: isNaN(longitude) ? null : longitude,
             radius_meters: isNaN(radiusMeters) ? 100 : radiusMeters,
-            custom_question: customQuestion || null
+            custom_question: customQuestion || null,
+            use_strict_timings: useStrictTimings,
+            checkin_start: useStrictTimings && checkinStartRaw ? new Date(checkinStartRaw).toISOString() : null,
+            checkin_end: useStrictTimings && checkinEndRaw ? new Date(checkinEndRaw).toISOString() : null,
+            checkout_start: useStrictTimings && checkoutStartRaw ? new Date(checkoutStartRaw).toISOString() : null,
+            checkout_end: useStrictTimings && checkoutEndRaw ? new Date(checkoutEndRaw).toISOString() : null
           })
           .eq("id", eventId);
 
@@ -454,33 +540,63 @@ Maria Santos Reyes"
 
     function generateQR(eventId, action, eventName) {
       const url = `${window.location.origin}${window.location.pathname.replace('admin.html', '')}signin.html?event=${eventId}&action=${action}`;
+      const canvas = document.createElement('canvas');
 
-      QRCode.toDataURL(url, { width: 300, margin: 2 }, function (err, dataUrl) {
+      // errorCorrectionLevel 'H' recovers up to ~30% of the QR's data even if
+      // part of it is obscured -- necessary since our logo covers the center
+      QRCode.toCanvas(canvas, url, { width: 300, margin: 2, errorCorrectionLevel: 'H' }, function (err) {
         if (err) {
           console.error(err);
           return;
         }
 
-        const container = document.getElementById(`qr-container-${eventId}`);
-        const wrapper = document.createElement("div");
-        wrapper.className = "flex flex-col items-center bg-gray-50 border border-gray-200 rounded-lg p-3";
-        const label = action === 'checkin' ? 'Check-In' : action === 'checkout' ? 'Check-Out' : 'Sign-In';
+        const logo = new Image();
 
-       wrapper.innerHTML = `
-          <p class="text-xs font-semibold text-red-800 mb-2">${label} QR</p>
-          <img src="${dataUrl}" class="w-40 h-40 border border-gray-300 rounded" />
-          <a href="${dataUrl}" download="${eventName.replace(/\s+/g, '-')}-${action}.png"
-            class="text-xs mt-2 bg-red-800 hover:bg-red-900 text-white px-3 py-1 rounded">
-            Download PNG
-          </a>
-          <a href="${url}" target="_blank" class="text-xs mt-2 text-blue-700 underline break-all text-center">
-            Open link directly →
-          </a>
-        `;
+        logo.onload = function () {
+          const ctx = canvas.getContext('2d');
+          const qrSize = canvas.width;
+          const logoSize = qrSize * 0.18; // ~18% of total QR width
+          const logoX = (qrSize - logoSize) / 2;
+          const logoY = (qrSize - logoSize) / 2;
+          const padding = logoSize * 0.12; // white buffer zone around the logo
 
-        container.innerHTML = "";
-        container.appendChild(wrapper);
+          ctx.fillStyle = '#FFFFFF';
+          ctx.fillRect(logoX - padding, logoY - padding, logoSize + padding * 2, logoSize + padding * 2);
+          ctx.drawImage(logo, logoX, logoY, logoSize, logoSize);
+
+          renderQRResult(eventId, action, eventName, url, canvas.toDataURL('image/png'));
+        };
+
+        logo.onerror = function () {
+          // Logo failed to load (e.g. missing file) -- still show a working
+          // plain QR rather than blocking generation entirely
+          renderQRResult(eventId, action, eventName, url, canvas.toDataURL('image/png'));
+        };
+
+        logo.src = 'logo.png';
       });
+    }
+
+    function renderQRResult(eventId, action, eventName, url, dataUrl) {
+      const container = document.getElementById(`qr-container-${eventId}`);
+      const wrapper = document.createElement("div");
+      wrapper.className = "flex flex-col items-center bg-gray-50 border border-gray-200 rounded-lg p-3";
+      const label = action === 'checkin' ? 'Check-In' : action === 'checkout' ? 'Check-Out' : 'Sign-In';
+
+      wrapper.innerHTML = `
+        <p class="text-xs font-semibold text-red-800 mb-2">${label} QR</p>
+        <img src="${dataUrl}" class="w-40 h-40 border border-gray-300 rounded" />
+        <a href="${dataUrl}" download="${eventName.replace(/\s+/g, '-')}-${action}.png"
+          class="text-xs mt-2 bg-red-800 hover:bg-red-900 text-white px-3 py-1 rounded">
+          Download PNG
+        </a>
+        <a href="${url}" target="_blank" class="text-xs mt-2 text-blue-700 underline break-all text-center">
+          Open link directly →
+        </a>
+      `;
+
+      container.innerHTML = "";
+      container.appendChild(wrapper);
     }
 
     // ---- Roster management (closed events only) ----

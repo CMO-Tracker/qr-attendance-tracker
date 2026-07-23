@@ -310,10 +310,34 @@
         return { ok: false, reason: "This event has been manually closed by the admin. Attendance is not currently being accepted." };
       }
 
-      if (!currentEvent.start_time || !currentEvent.end_time) {
-        return { ok: true }; // no schedule set on this event -> skip check
+      // Strict phase timings only apply to open-event Check-In/Check-Out —
+      // never to closed-event 'signin', and only when the admin enabled it.
+      if (currentEvent.use_strict_timings && (action === "checkin" || action === "checkout")) {
+        const windowStart = action === "checkin" ? currentEvent.checkin_start : currentEvent.checkout_start;
+        const windowEnd = action === "checkin" ? currentEvent.checkin_end : currentEvent.checkout_end;
+        const label = action === "checkin" ? "Check-In" : "Check-Out";
+
+        // Safety net: if the admin enabled the toggle but left a window blank,
+        // don't block everyone — just skip this specific check.
+        if (!windowStart || !windowEnd) return { ok: true };
+
+        const now = new Date();
+        const start = new Date(windowStart);
+        const end = new Date(windowEnd);
+
+        if (now < start) {
+          return { ok: false, reason: `${label} hasn't opened yet. It opens at ${start.toLocaleString()}.` };
+        }
+        if (now > end) {
+          return { ok: false, reason: `${label} window has closed. It closed at ${end.toLocaleString()}.` };
+        }
+        return { ok: true };
       }
 
+      // Fallback: standard overall event start_time/end_time
+      if (!currentEvent.start_time || !currentEvent.end_time) {
+        return { ok: true };
+      }
       const now = new Date();
       const start = new Date(currentEvent.start_time);
       const end = new Date(currentEvent.end_time);
@@ -325,6 +349,20 @@
         return { ok: false, reason: `This event's attendance window has closed. It ended at ${end.toLocaleString()}.` };
       }
       return { ok: true };
+    }
+
+    // Builds the checkout reminder text for a successful Check-In, based on
+    // whichever timing mode the event uses.
+    function getCheckinReminderMessage() {
+      if (currentEvent.use_strict_timings && currentEvent.checkout_start && currentEvent.checkout_end) {
+        const start = new Date(currentEvent.checkout_start).toLocaleString([], { hour: '2-digit', minute: '2-digit' });
+        const end = new Date(currentEvent.checkout_end).toLocaleString([], { hour: '2-digit', minute: '2-digit' });
+        return `Please remember to scan the Check-Out QR code between ${start} and ${end} to be marked present.`;
+      } else if (currentEvent.end_time) {
+        const end = new Date(currentEvent.end_time).toLocaleString([], { hour: '2-digit', minute: '2-digit' });
+        return `Remember to check out before the event ends at ${end}.`;
+      }
+      return "";
     }
 
     function showLocked(msg) {
@@ -447,6 +485,7 @@
           <p class="text-2xl mb-2">📶</p>
           <p class="text-lg font-semibold text-yellow-700">Saved locally — no connection detected</p>
           <p class="text-sm text-gray-500 mt-1">Your ${action === "checkin" ? "Check-In" : "Check-Out"} will sync automatically once you're back online. Keep this page open if possible.</p>
+          ${action === "checkin" ? `<p class="text-sm text-yellow-800 font-medium mt-3">${getCheckinReminderMessage()}</p>` : ''}
         </div>
       `;
     }
@@ -697,6 +736,7 @@
               <p class="text-2xl mb-2">✅</p>
               <p class="text-lg font-semibold text-green-700">You're recorded for ${action === "checkin" ? "Check-In" : "Check-Out"}!</p>
               <p class="text-sm text-gray-500 mt-1">${currentEvent.name}</p>
+              ${action === "checkin" ? `<p class="text-sm text-yellow-800 font-medium mt-3 bg-yellow-50 border border-yellow-200 rounded-lg p-2">${getCheckinReminderMessage()}</p>` : ''}
             </div>
           `;
         }

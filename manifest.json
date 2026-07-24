@@ -1,0 +1,12 @@
+{
+  "name": "School Attendance Check-In",
+  "short_name": "Attendance",
+  "start_url": "signin.html",
+  "display": "standalone",
+  "background_color": "#7f1d1d",
+  "theme_color": "#7f1d1d",
+  "icons": [
+    { "src": "logo.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "logo.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}

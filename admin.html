@@ -23,124 +23,168 @@
     </div>
   </header>
 
-  <main class="max-w-2xl mx-auto p-6">
+  <main>
 
-    <section id="create-event-section" class="bg-white rounded-xl shadow p-6 border border-gray-200 mb-8">
-      <h2 class="text-lg font-semibold text-red-800 mb-4">Create New Event</h2>
-      <form id="event-form" class="space-y-4">
-        <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">Event Name</label>
-          <input type="text" id="event-name" required
-            class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500"
-            placeholder="e.g. First Friday Mass - August 2026" />
-        </div>
-        <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">Event Type</label>
-          <select id="event-type" required
-            class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500">
-            <option value="">-- Select --</option>
-            <option value="open">Open (e.g. Mass — separate Check-In / Check-Out)</option>
-            <option value="closed">Closed (e.g. Retreat — pre-loaded roster)</option>
-          </select>
-        </div>
-        <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">Event Date</label>
-          <input type="date" id="event-date" required
-            class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500" />
-        </div>
+    <!-- ============ VIEW 1: DASHBOARD HUB ============ -->
+    <section id="dashboard-hub" class="relative max-w-4xl mx-auto p-10 text-center overflow-hidden" style="min-height: 70vh;">
+      <img src="logo.png" alt=""
+        class="absolute inset-0 m-auto opacity-5 pointer-events-none select-none"
+        style="width: 380px; height: 380px; object-fit: contain;" />
 
-        <div class="grid grid-cols-2 gap-3">
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Start Time</label>
-            <input type="datetime-local" id="start-time" required
-              class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
-          </div>
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">End Time</label>
-            <input type="datetime-local" id="end-time" required
-              class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
-          </div>
-        </div>
+      <div class="relative z-10">
+        <h1 class="text-3xl font-bold text-red-800 mb-2">Welcome, Coordinator</h1>
+        <p class="text-gray-500 mb-10">What would you like to do today?</p>
 
-        <div class="border border-gray-200 rounded-lg p-3 bg-gray-50">
-          <p class="text-sm font-semibold text-red-800 mb-2">Geofence Location</p>
-          <p class="text-xs text-gray-500 mb-2">Leave blank to disable location-based checking for this event.</p>
-
-          <button type="button" onclick="useCurrentLocation()"
-            class="w-full bg-yellow-500 hover:bg-yellow-600 text-red-900 font-semibold text-sm py-1.5 rounded-lg mb-2">
-            📍 Use Current Location
+        <div class="grid sm:grid-cols-2 gap-6 max-w-xl mx-auto">
+          <button id="hub-create-card" onclick="showView('creator')"
+            class="bg-white border-2 border-red-800 hover:bg-red-50 rounded-2xl p-8 shadow transition text-center">
+            <p class="text-4xl mb-3">➕</p>
+            <p class="text-lg font-bold text-red-800">Create New Event</p>
           </button>
-          <p id="location-status" class="text-xs text-gray-500 mb-2"></p>
+          <button onclick="showView('manager')"
+            class="bg-white border-2 border-yellow-500 hover:bg-yellow-50 rounded-2xl p-8 shadow transition text-center">
+            <p class="text-4xl mb-3">📋</p>
+            <p class="text-lg font-bold text-red-800">Manage Tracked Events</p>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ VIEW 2: EVENT CREATOR ============ -->
+    <section id="event-creator-view" class="hidden max-w-2xl mx-auto p-6">
+      <button onclick="showView('hub')" class="text-red-800 text-sm underline mb-4 inline-block">← Back to Dashboard</button>
+
+      <div class="bg-white rounded-xl shadow p-6 border border-gray-200">
+        <h2 class="text-lg font-semibold text-red-800 mb-4">Create New Event</h2>
+        
+        <!-- YOUR FORM INTEGRATED HERE SAFELY WITHOUT MODIFICATIONS -->
+        <form id="event-form" class="space-y-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Event Name</label>
+            <input type="text" id="event-name" required
+              class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500"
+              placeholder="e.g. First Friday Mass - August 2026" />
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Event Type</label>
+            <select id="event-type" required
+              class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500">
+              <option value="">-- Select --</option>
+              <option value="open">Open (e.g. Mass — separate Check-In / Check-Out)</option>
+              <option value="closed">Closed (e.g. Retreat — pre-loaded roster)</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Event Date</label>
+            <input type="date" id="event-date" required
+              class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500" />
+          </div>
 
           <div class="grid grid-cols-2 gap-3">
             <div>
-              <label class="block text-xs font-medium text-gray-600 mb-1">Latitude</label>
-              <input type="number" step="any" id="event-latitude"
-                class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" placeholder="e.g. 10.9027" />
+              <label class="block text-sm font-medium text-gray-700 mb-1">Start Time</label>
+              <input type="datetime-local" id="start-time" required
+                class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
             </div>
             <div>
-              <label class="block text-xs font-medium text-gray-600 mb-1">Longitude</label>
-              <input type="number" step="any" id="event-longitude"
-                class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" placeholder="e.g. 123.1234" />
+              <label class="block text-sm font-medium text-gray-700 mb-1">End Time</label>
+              <input type="datetime-local" id="end-time" required
+                class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
             </div>
           </div>
 
-          <div class="mt-2">
-            <label class="block text-xs font-medium text-gray-600 mb-1">Radius (meters)</label>
-            <input type="number" id="event-radius" value="100" required
-              class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
-          </div>
-        </div>
+          <div class="border border-gray-200 rounded-lg p-3 bg-gray-50">
+            <p class="text-sm font-semibold text-red-800 mb-2">Geofence Location</p>
+            <p class="text-xs text-gray-500 mb-2">Leave blank to disable location-based checking for this event.</p>
 
-        <div class="border border-gray-200 rounded-lg p-3 bg-gray-50">
-          <label class="flex items-center gap-2 text-sm font-semibold text-red-800">
-            <input type="checkbox" id="event-strict-timings" class="rounded" />
-            Enable Strict Phase Timings <span class="text-xs font-normal text-gray-500">(Open events only)</span>
-          </label>
+            <button type="button" onclick="useCurrentLocation()"
+              class="w-full bg-yellow-500 hover:bg-yellow-600 text-red-900 font-semibold text-sm py-1.5 rounded-lg mb-2">
+              📍 Use Current Location
+            </button>
+            <p id="location-status" class="text-xs text-gray-500 mb-2"></p>
 
-          <div id="strict-timings-fields" class="hidden mt-3 space-y-2">
-            <div class="grid grid-cols-2 gap-2">
+          <div class="grid grid-cols-2 gap-3">
               <div>
-                <label class="block text-xs font-medium text-gray-600 mb-1">Check-In Opens</label>
-                <input type="datetime-local" id="checkin-start" class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
+                <label class="block text-xs font-medium text-gray-600 mb-1">Latitude</label>
+                <input type="number" step="any" id="event-latitude"
+                  class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" placeholder="e.g. 10.9027" />
               </div>
               <div>
-                <label class="block text-xs font-medium text-gray-600 mb-1">Check-In Closes</label>
-                <input type="datetime-local" id="checkin-end" class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
+                <label class="block text-xs font-medium text-gray-600 mb-1">Longitude</label>
+                <input type="number" step="any" id="event-longitude"
+                  class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" placeholder="e.g. 123.1234" />
               </div>
             </div>
-            <div class="grid grid-cols-2 gap-2">
-              <div>
-                <label class="block text-xs font-medium text-gray-600 mb-1">Check-Out Opens</label>
-                <input type="datetime-local" id="checkout-start" class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
+
+            <div class="mt-2">
+              <label class="block text-xs font-medium text-gray-600 mb-1">Radius (meters)</label>
+              <input type="number" id="event-radius" value="100" required
+                class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
+            </div>
+          </div>
+
+          <div class="border border-gray-200 rounded-lg p-3 bg-gray-50">
+            <label class="flex items-center gap-2 text-sm font-semibold text-red-800">
+              <input type="checkbox" id="event-strict-timings" class="rounded" />
+              Enable Strict Phase Timings <span class="text-xs font-normal text-gray-500">(Open events only)</span>
+            </label>
+
+            <div id="strict-timings-fields" class="hidden mt-3 space-y-2">
+              <div class="grid grid-cols-2 gap-2">
+                <div>
+                  <label class="block text-xs font-medium text-gray-600 mb-1">Check-In Opens</label>
+                  <input type="datetime-local" id="checkin-start" class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
+                </div>
+                <div>
+                  <label class="block text-xs font-medium text-gray-600 mb-1">Check-In Closes</label>
+                  <input type="datetime-local" id="checkin-end" class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
+                </div>
               </div>
-              <div>
-                <label class="block text-xs font-medium text-gray-600 mb-1">Check-Out Closes</label>
-                <input type="datetime-local" id="checkout-end" class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
+              <div class="grid grid-cols-2 gap-2">
+                <div>
+                  <label class="block text-xs font-medium text-gray-600 mb-1">Check-Out Opens</label>
+                  <input type="datetime-local" id="checkout-start" class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
+                </div>
+                <div>
+                  <label class="block text-xs font-medium text-gray-600 mb-1">Check-Out Closes</label>
+                  <input type="datetime-local" id="checkout-end" class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
+                </div>
               </div>
             </div>
           </div>
-        </div>
 
-        <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">Custom Question (optional)</label>
-          <textarea id="event-custom-question" rows="2"
-            placeholder="e.g. What did you learn during the homily? Leave blank to disable."
-            class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"></textarea>
-        </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Custom Question (optional)</label>
+            <textarea id="event-custom-question" rows="2"
+              placeholder="e.g. What did you learn during the homily? Leave blank to disable."
+              class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"></textarea>
+          </div>
 
-        <button type="submit"
-          class="w-full bg-red-800 hover:bg-red-900 text-white font-semibold py-2 rounded-lg transition">
-          Create Event
-        </button>
-        <p id="form-message" class="text-sm mt-2"></p>
-      </form>
+          <button type="submit"
+            class="w-full bg-red-800 hover:bg-red-900 text-white font-semibold py-2 rounded-lg transition">
+            Create Event
+          </button>
+          <p id="form-message" class="text-sm mt-2"></p>
+        </form>
+      </div>
     </section>
 
-    <section class="bg-white rounded-xl shadow p-6 border border-gray-200">
-      <h2 class="text-lg font-semibold text-red-800 mb-4">Existing Events</h2>
-      <div id="events-list" class="space-y-3">
-        <p class="text-gray-500 text-sm">Loading events...</p>
+    <!-- ============ VIEW 3: EVENT MANAGER ============ -->
+    <section id="event-manager-view" class="hidden max-w-4xl mx-auto p-6">
+      <button onclick="showView('hub')" class="text-red-800 text-sm underline mb-4 inline-block">← Back to Dashboard</button>
+      <h2 class="text-2xl font-bold text-red-800 mb-6">Manage Tracked Events</h2>
+
+      <div class="mb-8">
+        <h3 class="text-lg font-semibold text-green-700 mb-3">🟢 Ongoing Events</h3>
+        <div id="ongoing-events" class="space-y-3"><p class="text-sm text-gray-400">Loading...</p></div>
+      </div>
+      <div class="mb-8">
+        <h3 class="text-lg font-semibold text-yellow-700 mb-3">🕒 Upcoming Events</h3>
+        <div id="upcoming-events" class="space-y-3"></div>
+      </div>
+      <div class="mb-8">
+        <h3 class="text-lg font-semibold text-gray-500 mb-3">✅ Completed Events</h3>
+        <div id="completed-events" class="space-y-3"></div>
       </div>
     </section>
 
@@ -149,6 +193,181 @@
   <script src="config.js"></script>
   <script>
     let currentAdminRole = null;
+
+    let isCoordinator = false;
+    let allEventsData = [];
+
+    function showView(view) {
+      document.getElementById('dashboard-hub').classList.add('hidden');
+      document.getElementById('event-creator-view').classList.add('hidden');
+      document.getElementById('event-manager-view').classList.add('hidden');
+
+      if (view === 'hub') {
+        document.getElementById('dashboard-hub').classList.remove('hidden');
+      } else if (view === 'creator') {
+        document.getElementById('event-creator-view').classList.remove('hidden');
+      } else if (view === 'manager') {
+        document.getElementById('event-manager-view').classList.remove('hidden');
+        loadEvents();
+      }
+    }
+
+    // Manual overrides take absolute priority over the scheduled clock.
+    // force_open -> always Ongoing. force_closed -> always Completed.
+    // Otherwise, categorize purely by comparing "now" to start_time/end_time.
+    function getEventCategory(ev) {
+      if (ev.status_override === 'force_open') return 'ongoing';
+      if (ev.status_override === 'force_closed') return 'completed';
+
+      const now = new Date();
+      const start = ev.start_time ? new Date(ev.start_time) : null;
+      const end = ev.end_time ? new Date(ev.end_time) : null;
+
+      if (start && now < start) return 'upcoming';
+      if (end && now > end) return 'completed';
+      return 'ongoing'; // currently within window, or no schedule set at all
+    }
+
+    function buildEventCardHTML(ev, category) {
+      const overrideBadge = ev.status_override === 'force_open'
+        ? ' · <span class="font-semibold text-green-600">🔓 Forced Open</span>'
+        : ev.status_override === 'force_closed'
+        ? ' · <span class="font-semibold text-red-600">🔒 Forced Closed</span>'
+        : '';
+
+      let overrideButtons = '';
+      if (isCoordinator) {
+        if (category === 'ongoing') {
+          overrideButtons = `<button onclick="setOverride('${ev.id}', 'force_closed')" class="text-xs bg-red-100 hover:bg-red-200 text-red-800 px-2 py-1 rounded">Force Close Now</button>`;
+        } else if (category === 'upcoming') {
+          overrideButtons = `<button onclick="setOverride('${ev.id}', 'force_open')" class="text-xs bg-green-100 hover:bg-green-200 text-green-800 px-2 py-1 rounded">Force Open Now</button>`;
+        } else if (category === 'completed') {
+          overrideButtons = `<button onclick="setOverride('${ev.id}', 'force_open')" class="text-xs bg-green-100 hover:bg-green-200 text-green-800 px-2 py-1 rounded">Force Reopen</button>`;
+        }
+        if (ev.status_override) {
+          overrideButtons += ` <button onclick="setOverride('${ev.id}', null)" class="text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-2 py-1 rounded">Clear Override</button>`;
+        }
+      }
+
+      // QR generation utilities are disabled for Completed events, per spec
+      const qrSection = category === 'completed' ? '' : `
+        <div class="flex gap-2 flex-wrap mt-2">
+          ${ev.event_type === 'open' ? `
+            <button onclick="generateQR('${ev.id}', 'checkin', '${escapeQuotes(ev.name)}')" class="text-xs bg-yellow-500 hover:bg-yellow-600 text-red-900 font-semibold px-3 py-1.5 rounded-lg">Generate Check-In QR</button>
+            <button onclick="generateQR('${ev.id}', 'checkout', '${escapeQuotes(ev.name)}')" class="text-xs bg-yellow-500 hover:bg-yellow-600 text-red-900 font-semibold px-3 py-1.5 rounded-lg">Generate Check-Out QR</button>
+          ` : `
+            <button onclick="generateQR('${ev.id}', 'signin', '${escapeQuotes(ev.name)}')" class="text-xs bg-yellow-500 hover:bg-yellow-600 text-red-900 font-semibold px-3 py-1.5 rounded-lg">Generate Event QR</button>
+          `}
+        </div>
+        <div id="qr-container-${ev.id}" class="flex gap-4 flex-wrap mt-3"></div>
+      `;
+
+      const rosterSection = ev.event_type === 'closed' ? `
+        <div class="mt-3 border-t pt-3">
+          <button onclick="toggleRoster('${ev.id}')" class="text-xs text-red-800 underline font-medium">Manage Roster</button>
+          <div id="roster-panel-${ev.id}" class="hidden mt-2 space-y-2">
+            <textarea id="roster-input-${ev.id}" rows="4" placeholder="Paste one name per line..." class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"></textarea>
+            <button onclick="submitRoster('${ev.id}')" class="text-xs bg-yellow-500 hover:bg-yellow-600 text-red-900 font-semibold px-3 py-1.5 rounded-lg">Add to Roster (mark Absent)</button>
+            <div class="border-t border-gray-200 pt-2 mt-2">
+              <p class="text-xs text-gray-500 mb-1">— or upload a CSV (one name per row, no header) —</p>
+              <input type="file" id="roster-file-${ev.id}" accept=".csv" class="text-xs w-full" />
+              <button onclick="uploadRosterCSV('${ev.id}')" class="text-xs bg-yellow-500 hover:bg-yellow-600 text-red-900 font-semibold px-3 py-1.5 rounded-lg mt-1">Upload CSV (mark Absent)</button>
+            </div>
+            <p id="roster-message-${ev.id}" class="text-xs"></p>
+            <div id="roster-list-${ev.id}" class="text-xs text-gray-600 mt-2"></div>
+          </div>
+        </div>
+      ` : '';
+
+      const editPanel = isCoordinator ? `
+        <div id="edit-panel-${ev.id}" class="hidden mt-3 space-y-2 bg-gray-50 border border-gray-200 rounded-lg p-3">
+          <div>
+            <label class="block text-xs font-medium text-gray-600 mb-1">Event Name</label>
+            <input type="text" id="edit-name-${ev.id}" value="${escapeQuotes(ev.name)}" class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
+          </div>
+          <div class="grid grid-cols-2 gap-2">
+            <div>
+              <label class="block text-xs font-medium text-gray-600 mb-1">Start Time</label>
+              <input type="datetime-local" id="edit-start-${ev.id}" value="${isoToDatetimeLocalValue(ev.start_time)}" class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-gray-600 mb-1">End Time</label>
+              <input type="datetime-local" id="edit-end-${ev.id}" value="${isoToDatetimeLocalValue(ev.end_time)}" class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
+            </div>
+          </div>
+          <div class="grid grid-cols-3 gap-2">
+            <div>
+              <label class="block text-xs font-medium text-gray-600 mb-1">Latitude</label>
+              <input type="number" step="any" id="edit-lat-${ev.id}" value="${ev.latitude ?? ''}" class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-gray-600 mb-1">Longitude</label>
+              <input type="number" step="any" id="edit-lng-${ev.id}" value="${ev.longitude ?? ''}" class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-gray-600 mb-1">Radius (m)</label>
+              <input type="number" id="edit-radius-${ev.id}" value="${ev.radius_meters ?? 100}" class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
+            </div>
+          </div>
+          <div class="border border-gray-200 rounded-lg p-2">
+            <label class="flex items-center gap-2 text-xs font-semibold text-red-800">
+              <input type="checkbox" id="edit-strict-${ev.id}" ${ev.use_strict_timings ? 'checked' : ''}
+                onchange="document.getElementById('edit-strict-fields-${ev.id}').classList.toggle('hidden', !this.checked)" class="rounded" />
+              Enable Strict Phase Timings
+            </label>
+            <div id="edit-strict-fields-${ev.id}" class="${ev.use_strict_timings ? '' : 'hidden'} mt-2 space-y-2">
+              <div class="grid grid-cols-2 gap-2">
+                <div><label class="block text-xs font-medium text-gray-600 mb-1">Check-In Opens</label><input type="datetime-local" id="edit-checkin-start-${ev.id}" value="${isoToDatetimeLocalValue(ev.checkin_start)}" class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" /></div>
+                <div><label class="block text-xs font-medium text-gray-600 mb-1">Check-In Closes</label><input type="datetime-local" id="edit-checkin-end-${ev.id}" value="${isoToDatetimeLocalValue(ev.checkin_end)}" class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" /></div>
+              </div>
+              <div class="grid grid-cols-2 gap-2">
+                <div><label class="block text-xs font-medium text-gray-600 mb-1">Check-Out Opens</label><input type="datetime-local" id="edit-checkout-start-${ev.id}" value="${isoToDatetimeLocalValue(ev.checkout_start)}" class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" /></div>
+                <div><label class="block text-xs font-medium text-gray-600 mb-1">Check-Out Closes</label><input type="datetime-local" id="edit-checkout-end-${ev.id}" value="${isoToDatetimeLocalValue(ev.checkout_end)}" class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" /></div>
+              </div>
+            </div>
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-gray-600 mb-1">Custom Question (optional)</label>
+            <textarea id="edit-question-${ev.id}" rows="2" class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm">${ev.custom_question || ''}</textarea>
+          </div>
+          <div class="flex gap-2">
+            <button onclick="saveEventEdit('${ev.id}')" class="text-xs bg-red-800 hover:bg-red-900 text-white font-semibold px-3 py-1.5 rounded-lg">Save Changes</button>
+            <button onclick="toggleEditEvent('${ev.id}')" class="text-xs text-gray-500 underline">Cancel</button>
+          </div>
+          <p id="edit-message-${ev.id}" class="text-xs"></p>
+        </div>
+      ` : '';
+
+      return `
+        <div class="border border-gray-200 rounded-lg p-3 bg-white ${category === 'completed' ? 'opacity-60' : ''}">
+          <div class="flex justify-between items-center mb-2">
+            <div>
+              <p class="font-medium text-gray-800">${ev.name}</p>
+              <p class="text-xs text-gray-500">${ev.event_date} · ${ev.event_type === 'open' ? 'Open Event' : 'Closed Event'}${overrideBadge}</p>
+            </div>
+          </div>
+
+          <a href="report.html?event=${ev.id}" class="text-xs text-red-800 underline font-medium block mb-2">
+            ${category === 'completed' ? '📊 View Report & Export' : 'View Report →'}
+          </a>
+
+          ${qrSection}
+          ${rosterSection}
+
+          ${isCoordinator ? `
+            <div class="mt-3 border-t pt-3">
+              <div class="flex gap-2 flex-wrap items-center">
+                <button onclick="toggleEditEvent('${ev.id}')" class="text-xs text-red-800 underline font-medium">Edit Event</button>
+                <button onclick="deleteEvent('${ev.id}', '${escapeQuotes(ev.name)}')" class="text-xs text-red-600 underline font-medium">Delete Event</button>
+                <span class="text-gray-300">|</span>
+                ${overrideButtons}
+              </div>
+              ${editPanel}
+            </div>
+          ` : ''}
+        </div>
+      `;
+    }
 
     // Route protection: redirect to login if no active session OR no recognized role
     async function requireAuth() {
@@ -262,7 +481,7 @@
         messageEl.className = "text-sm mt-2 text-green-700";
         form.reset();
         document.getElementById("strict-timings-fields").classList.add("hidden");
-        loadEvents();
+        showView('manager');
       }
     });
 
@@ -273,170 +492,27 @@
         .order("event_date", { ascending: false });
 
       if (error) {
-        eventsListEl.innerHTML = `<p class="text-red-600 text-sm">Error loading events: ${error.message}</p>`;
+        document.getElementById("ongoing-events").innerHTML = `<p class="text-red-600 text-sm">Error loading events: ${error.message}</p>`;
         return;
       }
 
-      if (data.length === 0) {
-        eventsListEl.innerHTML = `<p class="text-gray-500 text-sm">No events yet.</p>`;
+      allEventsData = data;
+
+      const buckets = { ongoing: [], upcoming: [], completed: [] };
+      data.forEach(ev => buckets[getEventCategory(ev)].push(ev));
+
+      renderBucket("ongoing-events", buckets.ongoing, "ongoing", "No events currently ongoing.");
+      renderBucket("upcoming-events", buckets.upcoming, "upcoming", "No upcoming events scheduled.");
+      renderBucket("completed-events", buckets.completed, "completed", "No completed events yet.");
+    }
+
+    function renderBucket(containerId, events, category, emptyMessage) {
+      const el = document.getElementById(containerId);
+      if (events.length === 0) {
+        el.innerHTML = `<p class="text-sm text-gray-400">${emptyMessage}</p>`;
         return;
       }
-
-      const isCoordinator = currentAdminRole === 'coordinator';
-
-      eventsListEl.innerHTML = data.map(ev => `
-        <div class="border border-gray-200 rounded-lg p-3">
-          <div class="flex justify-between items-center mb-2">
-            <div>
-              <p class="font-medium text-gray-800">${ev.name}</p>
-              <p class="text-xs text-gray-500">
-                ${ev.event_date} · ${ev.event_type === 'open' ? 'Open Event' : 'Closed Event'}
-                ${ev.status_override === 'force_open' ? ' · <span class="font-semibold text-green-600">🔓 Forced Open</span>' : ''}
-                ${ev.status_override === 'force_closed' ? ' · <span class="font-semibold text-red-600">🔒 Forced Closed</span>' : ''}
-              </p>
-            </div>
-          </div>
-
-          <a href="report.html?event=${ev.id}" class="text-xs text-red-800 underline font-medium block mb-2">
-            View Report →
-          </a>
-
-          ${!isCoordinator ? '' : `
-          <div class="flex gap-2 flex-wrap">
-            ${ev.event_type === 'open' ? `
-              <button onclick="generateQR('${ev.id}', 'checkin', '${escapeQuotes(ev.name)}')"
-                class="text-xs bg-yellow-500 hover:bg-yellow-600 text-red-900 font-semibold px-3 py-1.5 rounded-lg">
-                Generate Check-In QR
-              </button>
-              <button onclick="generateQR('${ev.id}', 'checkout', '${escapeQuotes(ev.name)}')"
-                class="text-xs bg-yellow-500 hover:bg-yellow-600 text-red-900 font-semibold px-3 py-1.5 rounded-lg">
-                Generate Check-Out QR
-              </button>
-            ` : `
-              <button onclick="generateQR('${ev.id}', 'signin', '${escapeQuotes(ev.name)}')"
-                class="text-xs bg-yellow-500 hover:bg-yellow-600 text-red-900 font-semibold px-3 py-1.5 rounded-lg">
-                Generate Event QR
-              </button>
-            `}
-          </div>
-
-          <div id="qr-container-${ev.id}" class="flex gap-4 flex-wrap mt-3"></div>
-
-          <div class="mt-3 border-t pt-3">
-            <div class="flex gap-2 flex-wrap items-center">
-              <button onclick="toggleEditEvent('${ev.id}')" class="text-xs text-red-800 underline font-medium">Edit Event</button>
-              <button onclick="deleteEvent('${ev.id}', '${escapeQuotes(ev.name)}')" class="text-xs text-red-600 underline font-medium">Delete Event</button>
-              <span class="text-gray-300">|</span>
-              <button onclick="setOverride('${ev.id}', 'force_open')" class="text-xs bg-green-100 hover:bg-green-200 text-green-800 px-2 py-1 rounded">Force Open Now</button>
-              <button onclick="setOverride('${ev.id}', 'force_closed')" class="text-xs bg-red-100 hover:bg-red-200 text-red-800 px-2 py-1 rounded">Force Close Now</button>
-              ${ev.status_override ? `<button onclick="setOverride('${ev.id}', null)" class="text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-2 py-1 rounded">Clear Override</button>` : ''}
-            </div>
-
-            <div id="edit-panel-${ev.id}" class="hidden mt-3 space-y-2 bg-gray-50 border border-gray-200 rounded-lg p-3">
-              <div>
-                <label class="block text-xs font-medium text-gray-600 mb-1">Event Name</label>
-                <input type="text" id="edit-name-${ev.id}" value="${escapeQuotes(ev.name)}" class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
-              </div>
-              <div class="grid grid-cols-2 gap-2">
-                <div>
-                  <label class="block text-xs font-medium text-gray-600 mb-1">Start Time</label>
-                  <input type="datetime-local" id="edit-start-${ev.id}" value="${isoToDatetimeLocalValue(ev.start_time)}" class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
-                </div>
-                <div>
-                  <label class="block text-xs font-medium text-gray-600 mb-1">End Time</label>
-                  <input type="datetime-local" id="edit-end-${ev.id}" value="${isoToDatetimeLocalValue(ev.end_time)}" class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
-                </div>
-              </div>
-              <div class="grid grid-cols-3 gap-2">
-                <div>
-                  <label class="block text-xs font-medium text-gray-600 mb-1">Latitude</label>
-                  <input type="number" step="any" id="edit-lat-${ev.id}" value="${ev.latitude ?? ''}" class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
-                </div>
-                <div>
-                  <label class="block text-xs font-medium text-gray-600 mb-1">Longitude</label>
-                  <input type="number" step="any" id="edit-lng-${ev.id}" value="${ev.longitude ?? ''}" class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
-                </div>
-                <div>
-                  <label class="block text-xs font-medium text-gray-600 mb-1">Radius (m)</label>
-                  <input type="number" id="edit-radius-${ev.id}" value="${ev.radius_meters ?? 100}" class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
-                </div>
-              </div>
-              <div class="border border-gray-200 rounded-lg p-2">
-                <label class="flex items-center gap-2 text-xs font-semibold text-red-800">
-                  <input type="checkbox" id="edit-strict-${ev.id}" ${ev.use_strict_timings ? 'checked' : ''}
-                    onchange="document.getElementById('edit-strict-fields-${ev.id}').classList.toggle('hidden', !this.checked)"
-                    class="rounded" />
-                  Enable Strict Phase Timings
-                </label>
-                <div id="edit-strict-fields-${ev.id}" class="${ev.use_strict_timings ? '' : 'hidden'} mt-2 space-y-2">
-                  <div class="grid grid-cols-2 gap-2">
-                    <div>
-                      <label class="block text-xs font-medium text-gray-600 mb-1">Check-In Opens</label>
-                      <input type="datetime-local" id="edit-checkin-start-${ev.id}" value="${isoToDatetimeLocalValue(ev.checkin_start)}" class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
-                    </div>
-                    <div>
-                      <label class="block text-xs font-medium text-gray-600 mb-1">Check-In Closes</label>
-                      <input type="datetime-local" id="edit-checkin-end-${ev.id}" value="${isoToDatetimeLocalValue(ev.checkin_end)}" class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
-                    </div>
-                  </div>
-                  <div class="grid grid-cols-2 gap-2">
-                    <div>
-                      <label class="block text-xs font-medium text-gray-600 mb-1">Check-Out Opens</label>
-                      <input type="datetime-local" id="edit-checkout-start-${ev.id}" value="${isoToDatetimeLocalValue(ev.checkout_start)}" class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
-                    </div>
-                    <div>
-                      <label class="block text-xs font-medium text-gray-600 mb-1">Check-Out Closes</label>
-                      <input type="datetime-local" id="edit-checkout-end-${ev.id}" value="${isoToDatetimeLocalValue(ev.checkout_end)}" class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div>
-                <label class="block text-xs font-medium text-gray-600 mb-1">Custom Question (optional)</label>
-                <textarea id="edit-question-${ev.id}" rows="2" class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm">${ev.custom_question || ''}</textarea>
-              </div>
-              <div class="flex gap-2">
-                <button onclick="saveEventEdit('${ev.id}')" class="text-xs bg-red-800 hover:bg-red-900 text-white font-semibold px-3 py-1.5 rounded-lg">Save Changes</button>
-                <button onclick="toggleEditEvent('${ev.id}')" class="text-xs text-gray-500 underline">Cancel</button>
-              </div>
-              <p id="edit-message-${ev.id}" class="text-xs"></p>
-            </div>
-          </div>
-
-          ${ev.event_type === 'closed' ? `
-            <div class="mt-3 border-t pt-3">
-              <button onclick="toggleRoster('${ev.id}')" class="text-xs text-red-800 underline font-medium">
-                Manage Roster
-              </button>
-              <div id="roster-panel-${ev.id}" class="hidden mt-2 space-y-2">
-               <textarea id="roster-input-${ev.id}" rows="5"
-                  placeholder="Paste one name per line, e.g.:
-Dela Cruz, Juan Miguel
-Maria Santos Reyes"
-                  class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"></textarea>
-                <button onclick="submitRoster('${ev.id}')"
-                  class="text-xs bg-yellow-500 hover:bg-yellow-600 text-red-900 font-semibold px-3 py-1.5 rounded-lg">
-                  Add to Roster (mark Absent)
-                </button>
-
-                <div class="border-t border-gray-200 pt-2 mt-2">
-                  <p class="text-xs text-gray-500 mb-1">— or upload a CSV (one name per row, no header) —</p>
-                  <input type="file" id="roster-file-${ev.id}" accept=".csv"
-                    class="text-xs w-full" />
-                  <button onclick="uploadRosterCSV('${ev.id}')"
-                    class="text-xs bg-yellow-500 hover:bg-yellow-600 text-red-900 font-semibold px-3 py-1.5 rounded-lg mt-1">
-                    Upload CSV (mark Absent)
-                  </button>
-                </div>
-                <p id="roster-message-${ev.id}" class="text-xs"></p>
-                <div id="roster-list-${ev.id}" class="text-xs text-gray-600 mt-2"></div>
-              </div>
-            </div>
-          ` : ''}
-          `}
-        </div>
-      `).join("");
+      el.innerHTML = events.map(ev => buildEventCardHTML(ev, category)).join("");
     }
 
     function escapeQuotes(str) {
@@ -777,10 +853,11 @@ Maria Santos Reyes"
     }
 
     function onRoleReady() {
-      if (currentAdminRole !== 'coordinator') {
-        document.getElementById("create-event-section").classList.add("hidden");
+      isCoordinator = currentAdminRole === 'coordinator';
+      if (!isCoordinator) {
+        document.getElementById("hub-create-card").classList.add("hidden");
       }
-      loadEvents();
+      // Dashboard hub is already visible by default -- nothing else to load yet
     }
   </script>
 </body>

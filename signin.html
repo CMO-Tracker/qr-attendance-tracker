@@ -4,6 +4,10 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Sign In — QR Attendance Tracker</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="logo.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="theme-color" content="#7f1d1d">
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
@@ -11,6 +15,11 @@
 
   <div id="network-bar" class="fixed top-0 left-0 right-0 z-50 text-center text-sm font-semibold py-2 bg-green-600 text-white">
     Connected to School Database
+  </div>
+
+  <div id="sync-badge" class="fixed bottom-4 right-4 z-50 flex items-center gap-2 bg-white shadow-lg border border-gray-200 rounded-full px-3 py-1.5 text-xs font-semibold">
+    <span id="sync-badge-dot" class="w-2 h-2 rounded-full bg-green-500"></span>
+    <span id="sync-badge-text" class="text-gray-700">Synced</span>
   </div>
 
   <div class="max-w-md mx-auto mt-10">
@@ -144,6 +153,9 @@
    <div id="form-message" class="text-sm text-center mt-3 text-white"></div>
     <div id="success-area" class="max-w-md mx-auto"></div>
 
+  <p class="text-center mt-4">
+      <button onclick="openReceiptsModal()" class="text-yellow-300 text-xs underline">View Attendance Receipts</button>
+    </p>
   </div>
 
   <script src="config.js"></script>
@@ -418,6 +430,76 @@
         bar.textContent = "Offline - Attendance Saved Locally. Keep this page open.";
         bar.className = "fixed top-0 left-0 right-0 z-50 text-center text-sm font-semibold py-2 bg-yellow-500 text-red-900";
       }
+      updateSyncBadge();
+    }
+
+    function updateSyncBadge() {
+      const queue = getOfflineQueue();
+      const dot = document.getElementById("sync-badge-dot");
+      const text = document.getElementById("sync-badge-text");
+
+      if (queue.length === 0) {
+        dot.className = "w-2 h-2 rounded-full bg-green-500";
+        text.textContent = "● Synced";
+        text.className = "text-green-700";
+      } else {
+        dot.className = "w-2 h-2 rounded-full bg-amber-500 animate-pulse";
+        text.textContent = `● ${queue.length} log(s) pending upload. Please do not close this tab until this turns green.`;
+        text.className = "text-amber-700";
+      }
+    }
+
+    // ---- Attendance Receipts ----
+    const RECEIPTS_KEY = "attendance_receipts";
+    const MAX_RECEIPTS = 200; // keeps localStorage from growing unbounded over a school year
+
+    function saveReceipt(eventName, scanType) {
+      let receipts = [];
+      try {
+        receipts = JSON.parse(localStorage.getItem(RECEIPTS_KEY)) || [];
+      } catch { receipts = []; }
+
+      receipts.unshift({
+        eventName,
+        date: new Date().toLocaleDateString(),
+        scanType,
+        timestamp: new Date().toLocaleString(),
+        status: "Saved Locally"
+      });
+
+      if (receipts.length > MAX_RECEIPTS) receipts = receipts.slice(0, MAX_RECEIPTS);
+      localStorage.setItem(RECEIPTS_KEY, JSON.stringify(receipts));
+    }
+
+    function openReceiptsModal() {
+      let receipts = [];
+      try {
+        receipts = JSON.parse(localStorage.getItem(RECEIPTS_KEY)) || [];
+      } catch { receipts = []; }
+
+      const rows = receipts.length === 0
+        ? `<p class="text-gray-400 text-sm text-center py-6">No receipts yet on this device.</p>`
+        : receipts.map(r => `
+            <div class="border-b border-gray-100 py-2">
+              <p class="text-sm font-semibold text-gray-800">${r.eventName}</p>
+              <p class="text-xs text-gray-500">${r.scanType} · ${r.timestamp}</p>
+              <p class="text-xs text-green-700 font-medium">${r.status}</p>
+            </div>
+          `).join("");
+
+      const modal = document.createElement("div");
+      modal.id = "receipts-modal";
+      modal.className = "fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60] p-4";
+      modal.innerHTML = `
+        <div class="bg-white rounded-xl shadow-lg max-w-sm w-full max-h-[80vh] flex flex-col">
+          <div class="flex justify-between items-center p-4 border-b border-gray-100">
+            <h2 class="text-lg font-bold text-red-800">My Attendance Receipts</h2>
+            <button onclick="document.getElementById('receipts-modal').remove()" class="text-gray-400 hover:text-gray-600 text-xl leading-none">&times;</button>
+          </div>
+          <div class="p-4 overflow-y-auto">${rows}</div>
+        </div>
+      `;
+      document.body.appendChild(modal);
     }
 
     // Attempts to push every queued record to Supabase. Uses the same
@@ -692,6 +774,7 @@
           return;
         }
         queueOfflineSubmission({ eventId, action, deviceId, record });
+        saveReceipt(currentEvent.name, action === "checkin" ? "Check-In" : "Check-Out");
         if (action === "checkin") saveSessionForEvent(eventId, record);
         showOfflineSavedMessage(action);
         return;
@@ -730,6 +813,7 @@
           submitBtn.disabled = false;
           submitBtn.textContent = "Submit";
         } else {
+          saveReceipt(currentEvent.name, action === "checkin" ? "Check-In" : "Check-Out");
           if (action === "checkin") saveSessionForEvent(eventId, record);
           formWrapper.innerHTML = `
             <div class="text-center py-6">
@@ -742,8 +826,10 @@
         }
       } catch (networkErr) {
         queueOfflineSubmission({ eventId, action, deviceId, record });
+        saveReceipt(currentEvent.name, action === "checkin" ? "Check-In" : "Check-Out");
         if (action === "checkin") saveSessionForEvent(eventId, record);
         showOfflineSavedMessage(action);
+        return;
       }
     });
 
@@ -870,6 +956,7 @@
         messageEl.textContent = "❌ " + error.message;
         messageEl.className = "text-sm text-center mt-3 text-yellow-300";
       } else {
+        saveReceipt(currentEvent.name, "Sign-In");
         closedFormWrapper.innerHTML = `
           <div class="text-center py-6">
             <p class="text-2xl mb-2">✅</p>
@@ -929,6 +1016,7 @@
 
       if (!navigator.onLine) {
         queueOfflineSubmission({ eventId, action: "checkout", deviceId, record });
+        saveReceipt(currentEvent.name, "Check-Out");
         showOfflineSavedMessage("checkout", oneTouchWrapper);
         return;
       }
@@ -962,6 +1050,7 @@
           btn.disabled = false;
           btn.textContent = "Confirm Check-Out";
         } else {
+          saveReceipt(currentEvent.name, "Check-Out");
           oneTouchWrapper.innerHTML = `
             <div class="text-center py-6">
               <p class="text-2xl mb-2">✅</p>
@@ -971,7 +1060,8 @@
           `;
         }
       } catch (networkErr) {
-        queueOfflineSubmission({ eventId, action: "checkout", deviceId, record });
+       queueOfflineSubmission({ eventId, action: "checkout", deviceId, record });
+        saveReceipt(currentEvent.name, "Check-Out");
         showOfflineSavedMessage("checkout", oneTouchWrapper);
       }
     });
@@ -979,6 +1069,14 @@
     init();
     updateNetworkBar();
     syncOfflineQueue();
+  </script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('service-worker.js')
+          .catch((err) => console.error('Service worker registration failed:', err));
+      });
+    }
   </script>
 </body>
 </html>

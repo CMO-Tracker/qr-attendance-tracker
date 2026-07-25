@@ -131,7 +131,8 @@
       // Embeds the related event's name/date/type via the event_id foreign key
       const { data, error } = await supabaseClient
         .from("attendance_records")
-        .select("*, events(name, event_date, event_type)");
+        .select("*, events(name, event_date, event_type)")
+        .is("deleted_at", null);
 
       if (error) {
         document.getElementById("loading").textContent = "Error loading data: " + error.message;

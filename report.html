@@ -343,24 +343,19 @@
     }
 
     async function deleteRecord(recordId) {
-      // 1. Replace the native browser popup with your custom promise-based dialog
-      const confirmed = await showConfirmDialog("Permanently delete this attendance record?");
+      const confirmed = await showConfirmDialog("Archive this attendance record? It will be hidden from this report but remains recoverable.");
       if (!confirmed) return;
 
       const { error } = await supabaseClient
         .from("attendance_records")
-       .delete()
+        .update({ deleted_at: new Date().toISOString() })
         .eq("id", recordId);
 
-        if (error) {
-         // 2. Replace the native alert popup with your custom error toast
-          showToast("Error deleting: " + error.message, "error");
-         return;
-        }
-
-       // 3. Add a success toast to give the coordinator instant visual feedback
-      showToast("Attendance record deleted successfully!", "success");
-
+      if (error) {
+        showToast("Error archiving: " + error.message, "error");
+        return;
+      }
+      showToast("Record archived.");
       await refreshRecords();
     }
 
@@ -368,6 +363,7 @@
     async function refreshRecords() {
       const { data, error } = await supabaseClient
         .from("attendance_records").select("*").eq("event_id", eventId)
+        .is("deleted_at", null)
         .order("last_name");
 
       if (error) return;

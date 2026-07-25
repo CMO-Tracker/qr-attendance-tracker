@@ -38,6 +38,13 @@
           <p class="text-gray-400 text-sm">What would you like to do today?</p>
         </div>
 
+        <div class="max-w-2xl mx-auto mb-4 flex justify-end">
+          <button onclick="openArchiveModal()"
+            class="border border-gray-200 text-gray-600 hover:bg-gray-50 rounded-xl px-4 py-2 text-sm flex items-center gap-2 transition-colors">
+            🗑️ Archived Events
+          </button>
+        </div>
+
         <div class="grid sm:grid-cols-2 gap-6 max-w-2xl mx-auto mb-10">
           <button id="hub-create-card" onclick="showView('creator')"
             class="group bg-white border border-gray-100 rounded-2xl p-8 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 text-left">
@@ -547,6 +554,7 @@
       const { data, error } = await supabaseClient
         .from("events")
         .select("*")
+        .is("deleted_at", null)
         .order("event_date", { ascending: false });
 
       if (error) {
@@ -707,40 +715,128 @@
 
     async function deleteEvent(eventId, eventName) {
       const confirmed = await showConfirmDialog(
-        `Permanently delete "${eventName}"?\n\nThis will also delete ALL attendance records, roster entries, and device locks for this event. This cannot be undone.`
+        `Archive "${eventName}"?\n\nThis hides it from your active dashboard. Its attendance records remain safely stored and the event stays viewable in Reports and Insights.`
       );
       if (!confirmed) return;
 
-      const { error } = await supabaseClient.from("events").delete().eq("id", eventId);
+      const { error } = await supabaseClient
+        .from("events")
+        .update({ deleted_at: new Date().toISOString() })
+        .eq("id", eventId);
+
       if (error) {
-        showToast("Error deleting event: " + error.message, "error");
+        showToast("Error archiving event: " + error.message, "error");
         return;
       }
-      showToast(`"${eventName}" deleted successfully.`);
+      showToast(`"${eventName}" archived.`);
       loadEvents();
+    }
+
+    async function openArchiveModal() {
+      const modal = document.getElementById("archive-modal");
+      const listEl = document.getElementById("archive-modal-list");
+      modal.classList.remove("hidden");
+      listEl.innerHTML = skeletonRows(3);
+
+      const { data, error } = await supabaseClient
+        .from("events")
+        .select("*")
+        .not("deleted_at", "is", null)
+        .order("deleted_at", { ascending: false });
+
+      if (error) {
+        listEl.innerHTML = `<p class="text-sm text-red-600 p-4">Error loading archive: ${error.message}</p>`;
+        return;
+      }
+
+      if (!data || data.length === 0) {
+        listEl.innerHTML = `<p class="text-sm text-gray-400 text-center py-8">No archived events found.</p>`;
+        return;
+      }
+
+      listEl.innerHTML = data.map(ev => `
+        <div class="flex justify-between items-center border border-gray-100 rounded-lg p-3">
+          <div class="min-w-0">
+            <p class="text-sm font-medium text-gray-800 truncate">${ev.name}</p>
+            <p class="text-xs text-gray-400">${ev.event_date} · ${ev.event_type === 'open' ? 'Open Event' : 'Closed Event'}</p>
+          </div>
+          <div class="flex gap-2 shrink-0 ml-3">
+            <button onclick="restoreEvent('${ev.id}', '${escapeQuotes(ev.name)}')"
+              class="text-xs font-medium px-3 py-1.5 rounded-lg border border-green-200 text-green-700 hover:bg-green-50">🔄 Restore</button>
+            <button onclick="permanentlyDeleteEvent('${ev.id}', '${escapeQuotes(ev.name)}')"
+              class="text-xs font-medium px-3 py-1.5 rounded-lg border border-red-200 text-red-700 hover:bg-red-50">🚨 Delete Permanently</button>
+          </div>
+        </div>
+      `).join("");
+    }
+
+    async function restoreEvent(eventId, eventName) {
+      const { error } = await supabaseClient
+        .from("events")
+        .update({ deleted_at: null })
+        .eq("id", eventId);
+
+      if (error) {
+        showToast("Error restoring event: " + error.message, "error");
+        return;
+      }
+
+      showToast(`"${eventName}" has been restored successfully!`, "success");
+      openArchiveModal();
+      loadEvents();
+    }
+
+    async function permanentlyDeleteEvent(eventId, eventName) {
+      const confirmed = await showConfirmDialog(
+        `🚨 CRITICAL: Are you absolutely sure you want to permanently delete "${eventName}"?\n\nThis action is irreversible and will permanently purge all associated attendance records from the database!`
+      );
+      if (!confirmed) return;
+
+      const { error } = await supabaseClient
+        .from("events")
+        .delete()
+        .eq("id", eventId);
+
+      if (error) {
+        showToast("Error permanently deleting event: " + error.message, "error");
+        return;
+      }
+
+      showToast(`"${eventName}" has been permanently deleted.`, "success");
+      openArchiveModal();
     }
 
     function generateQR(eventId, action, eventName) {
       const url = `${window.location.origin}${window.location.pathname.replace('admin.html', '')}signin.html?event=${eventId}&action=${action}`;
       const canvas = document.createElement('canvas');
+      const displaySize = 300;
+      const scaleFactor = 4;
+      const internalSize = displaySize * scaleFactor; // 1200px internal resolution
 
-      // errorCorrectionLevel 'H' recovers up to ~30% of the QR's data even if
-      // part of it is obscured -- necessary since our logo covers the center
-      QRCode.toCanvas(canvas, url, { width: 300, margin: 2, errorCorrectionLevel: 'H' }, function (err) {
+      QRCode.toCanvas(canvas, url, { width: internalSize, margin: 2, errorCorrectionLevel: 'H' }, function (err) {
         if (err) {
           console.error(err);
           return;
         }
 
+        // Inert on this detached canvas (see note above) but included per spec --
+        // harmless, and would matter if this canvas were ever attached to the DOM later.
+        canvas.style.width = displaySize + 'px';
+        canvas.style.height = displaySize + 'px';
+
         const logo = new Image();
 
         logo.onload = function () {
           const ctx = canvas.getContext('2d');
-          const qrSize = canvas.width;
-          const logoSize = qrSize * 0.18; // ~18% of total QR width
+          const qrSize = canvas.width; // now 1200, not 300 -- everything below scales automatically
+
+          ctx.imageSmoothingEnabled = true;
+          ctx.imageSmoothingQuality = 'high';
+
+          const logoSize = qrSize * 0.18;
           const logoX = (qrSize - logoSize) / 2;
           const logoY = (qrSize - logoSize) / 2;
-          const padding = logoSize * 0.12; // white buffer zone around the logo
+          const padding = logoSize * 0.12;
 
           ctx.fillStyle = '#FFFFFF';
           ctx.fillRect(logoX - padding, logoY - padding, logoSize + padding * 2, logoSize + padding * 2);
@@ -750,8 +846,6 @@
         };
 
         logo.onerror = function () {
-          // Logo failed to load (e.g. missing file) -- still show a working
-          // plain QR rather than blocking generation entirely
           renderQRResult(eventId, action, eventName, url, canvas.toDataURL('image/png'));
         };
 
@@ -971,6 +1065,7 @@
       const { data, error } = await supabaseClient
         .from("attendance_records")
         .select("first_name, last_name, status, created_at, events(name)")
+        .is("deleted_at", null)
         .order("created_at", { ascending: false })
         .limit(6);
 
@@ -1042,6 +1137,7 @@
       const { data, error } = await supabaseClient
         .from("attendance_records")
         .select("first_name, middle_name, last_name, department, program, status, events(name)")
+        .is("deleted_at", null)
         .or(`first_name.ilike.%${term}%,last_name.ilike.%${term}%`)
         .order("last_name")
         .limit(8);
@@ -1124,6 +1220,17 @@
       `).join("");
     }
   </script>
+
+  <div id="archive-modal" class="fixed inset-0 bg-black bg-opacity-40 z-[120] flex items-center justify-center p-4 hidden">
+    <div class="shadow-2xl bg-white rounded-xl max-w-2xl w-full p-6">
+      <div class="flex justify-between items-center mb-4">
+        <h2 class="text-lg font-bold text-gray-900">Archived Events (Trash Bin)</h2>
+        <button onclick="document.getElementById('archive-modal').classList.add('hidden')"
+          class="text-gray-400 hover:text-gray-600 text-xl leading-none">&times;</button>
+      </div>
+      <div id="archive-modal-list" class="max-h-96 overflow-y-auto space-y-2"></div>
+    </div>
+  </div>
 
   <div id="toast-container" class="fixed bottom-4 right-4 z-[100] flex flex-col gap-2"></div>
 </body>

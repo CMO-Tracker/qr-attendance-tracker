@@ -241,7 +241,7 @@
     }
 
     // Manual overrides take absolute priority over the scheduled clock.
-    // force_open -> always Ongoing. force_closed -> always Completed.
+    // force_open -> always Ongoing. force_closed -> always Completed
     // Otherwise, categorize purely by comparing "now" to start_time/end_time.
     function getEventCategory(ev) {
       if (ev.status_override === 'force_open') return 'ongoing';

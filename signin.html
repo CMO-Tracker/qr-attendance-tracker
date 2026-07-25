@@ -11,7 +11,7 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
-<body class="bg-red-900 min-h-screen py-8 px-4">
+<body class="min-h-screen py-8 px-4" style="background: linear-gradient(to bottom, #450a0a, #7f1d1d, #451a03);">
 
   <div id="network-bar" class="fixed top-0 left-0 right-0 z-50 text-center text-sm font-semibold py-2 bg-green-600 text-white">
     Connected to School Database
@@ -40,66 +40,77 @@
     </div>
 
     <!-- OPEN EVENT FORM -->
-    <div id="signin-form-wrapper" class="hidden bg-white rounded-xl shadow-lg p-6 border-4 border-yellow-500">
+    <div id="signin-form-wrapper" class="hidden bg-white rounded-2xl shadow-2xl p-6 pt-5 relative overflow-hidden">
+      <div class="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-yellow-400 via-yellow-500 to-yellow-600"></div>
+
       <div class="flex justify-center mb-4">
         <img src="logo.png" alt="School Logo" class="h-16 w-16 object-contain" />
       </div>
-      <h1 id="event-title" class="text-xl font-bold text-red-800 mb-1"></h1>
-      <p id="action-label" class="text-sm font-semibold text-yellow-700 uppercase mb-4"></p>
+      <h1 id="event-title" class="text-xl font-bold text-gray-900 text-center mb-1"></h1>
+      <p id="action-label" class="text-sm font-semibold text-red-800 uppercase text-center tracking-wide mb-5"></p>
 
       <form id="signin-form" class="space-y-3">
-        <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">First Name</label>
-          <input type="text" id="first-name" required class="w-full border border-gray-300 rounded-lg px-3 py-2" />
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">First Name</label>
+            <input type="text" id="first-name" required class="w-full border border-gray-200 rounded-lg px-3 py-2.5 focus:ring-2 focus:ring-red-800 focus:border-red-800 transition-all" />
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Last Name</label>
+            <input type="text" id="last-name" required class="w-full border border-gray-200 rounded-lg px-3 py-2.5 focus:ring-2 focus:ring-red-800 focus:border-red-800 transition-all" />
+          </div>
         </div>
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-1">Middle Name / Initial</label>
-          <input type="text" id="middle-name" class="w-full border border-gray-300 rounded-lg px-3 py-2" />
+          <input type="text" id="middle-name" class="w-full border border-gray-200 rounded-lg px-3 py-2.5 focus:ring-2 focus:ring-red-800 focus:border-red-800 transition-all" />
         </div>
-        <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">Last Name</label>
-          <input type="text" id="last-name" required class="w-full border border-gray-300 rounded-lg px-3 py-2" />
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">College / Department</label>
+            <select id="department" required class="w-full border border-gray-200 rounded-lg px-3 py-2.5 focus:ring-2 focus:ring-red-800 focus:border-red-800 transition-all">
+              <option value="">-- Select --</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Course / Program</label>
+            <select id="program" required class="w-full border border-gray-200 rounded-lg px-3 py-2.5 focus:ring-2 focus:ring-red-800 focus:border-red-800 transition-all">
+              <option value="">-- Select Dept First --</option>
+            </select>
+          </div>
         </div>
-        <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">College / Department</label>
-          <select id="department" required class="w-full border border-gray-300 rounded-lg px-3 py-2">
-            <option value="">-- Select Department --</option>
-          </select>
-        </div>
-        <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">Course / Program</label>
-          <select id="program" required class="w-full border border-gray-300 rounded-lg px-3 py-2">
-            <option value="">-- Select Department First --</option>
-          </select>
-        </div>
-        <div id="year-level-wrapper">
-          <label class="block text-sm font-medium text-gray-700 mb-1">Year Level</label>
-          <select id="year-level" required class="w-full border border-gray-300 rounded-lg px-3 py-2">
-            <option value="">-- Select --</option>
-            <option value="1st Year">1st Year</option>
-            <option value="2nd Year">2nd Year</option>
-            <option value="3rd Year">3rd Year</option>
-            <option value="4th Year">4th Year</option>
-          </select>
-        </div>
-        <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">Section</label>
-          <input type="text" id="section" required class="w-full border border-gray-300 rounded-lg px-3 py-2" />
+
+        <div class="grid grid-cols-2 gap-3">
+          <div id="year-level-wrapper">
+            <label class="block text-sm font-medium text-gray-700 mb-1">Year Level</label>
+            <select id="year-level" required class="w-full border border-gray-200 rounded-lg px-3 py-2.5 focus:ring-2 focus:ring-red-800 focus:border-red-800 transition-all">
+              <option value="">-- Select --</option>
+              <option value="1st Year">1st Year</option>
+              <option value="2nd Year">2nd Year</option>
+              <option value="3rd Year">3rd Year</option>
+              <option value="4th Year">4th Year</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Section</label>
+            <input type="text" id="section" required class="w-full border border-gray-200 rounded-lg px-3 py-2.5 focus:ring-2 focus:ring-red-800 focus:border-red-800 transition-all" />
+          </div>
         </div>
 
         <div id="custom-question-wrapper" class="hidden">
           <label class="block text-sm font-medium text-gray-700 mb-1" id="custom-question-label"></label>
-          <textarea id="custom-question-input" rows="3" class="w-full border border-gray-300 rounded-lg px-3 py-2"></textarea>
+          <textarea id="custom-question-input" rows="3" class="w-full border border-gray-200 rounded-lg px-3 py-2.5 focus:ring-2 focus:ring-red-800 focus:border-red-800 transition-all"></textarea>
         </div>
 
-        <button type="submit" class="w-full bg-red-800 hover:bg-red-900 text-white font-semibold py-2 rounded-lg mt-2">
+        <button type="submit" class="w-full bg-red-800 hover:bg-red-900 text-white font-semibold py-2.5 rounded-lg mt-2 transition-colors">
           Submit
         </button>
       </form>
     </div>
 
     <!-- ONE-TOUCH CHECK-OUT -->
-    <div id="one-touch-wrapper" class="hidden bg-white rounded-xl shadow-lg p-6 border-4 border-yellow-500">
+    <div id="one-touch-wrapper" class="hidden bg-white rounded-2xl shadow-2xl p-6 pt-5 relative overflow-hidden">
+      <div class="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-yellow-400 via-yellow-500 to-yellow-600"></div>
       <div class="flex justify-center mb-4">
         <img src="logo.png" alt="School Logo" class="h-16 w-16 object-contain" />
       </div>
@@ -128,7 +139,8 @@
 
 
     <!-- CLOSED EVENT FORM -->
-    <div id="closed-form-wrapper" class="hidden bg-white rounded-xl shadow-lg p-6 border-4 border-yellow-500">
+    <div id="closed-form-wrapper" class="hidden bg-white rounded-2xl shadow-2xl p-6 pt-5 relative overflow-hidden">
+      <div class="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-yellow-400 via-yellow-500 to-yellow-600"></div>
       <div class="flex justify-center mb-4">
         <img src="logo.png" alt="School Logo" class="h-16 w-16 object-contain" />
       </div>

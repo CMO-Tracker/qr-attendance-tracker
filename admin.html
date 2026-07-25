@@ -26,26 +26,54 @@
   <main>
 
     <!-- ============ VIEW 1: DASHBOARD HUB ============ -->
-    <section id="dashboard-hub" class="relative max-w-4xl mx-auto p-10 text-center overflow-hidden" style="min-height: 70vh;">
+    <section id="dashboard-hub" class="relative max-w-5xl mx-auto p-10 overflow-hidden" style="min-height: 70vh;">
       <img src="logo.png" alt=""
-        class="absolute inset-0 m-auto opacity-5 pointer-events-none select-none"
-        style="width: 380px; height: 380px; object-fit: contain;" />
+        class="absolute inset-0 m-auto opacity-[0.04] pointer-events-none select-none"
+        style="width: 420px; height: 420px; object-fit: contain;" />
 
       <div class="relative z-10">
-        <h1 class="text-3xl font-bold text-red-800 mb-2">Welcome, Coordinator</h1>
-        <p class="text-gray-500 mb-10">What would you like to do today?</p>
+        <div class="text-center mb-10">
+          <h1 class="text-3xl font-bold text-gray-900 tracking-tight mb-1">Welcome, Coordinator</h1>
+          <p class="text-gray-400 text-sm">What would you like to do today?</p>
+        </div>
 
-        <div class="grid sm:grid-cols-2 gap-6 max-w-xl mx-auto">
+        <div class="grid sm:grid-cols-2 gap-6 max-w-2xl mx-auto mb-10">
           <button id="hub-create-card" onclick="showView('creator')"
-            class="bg-white border-2 border-red-800 hover:bg-red-50 rounded-2xl p-8 shadow transition text-center">
-            <p class="text-4xl mb-3">➕</p>
-            <p class="text-lg font-bold text-red-800">Create New Event</p>
+            class="group bg-white border border-gray-100 rounded-2xl p-8 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 text-left">
+            <div class="w-12 h-12 rounded-full bg-red-50 flex items-center justify-center mb-4 group-hover:bg-red-100 transition-colors">
+              <svg class="w-6 h-6 text-red-800" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+              </svg>
+            </div>
+            <p class="text-lg font-bold text-gray-900 mb-1">Create New Event</p>
+            <p class="text-sm text-gray-400">Set up a new Mass or Retreat</p>
           </button>
+
           <button onclick="showView('manager')"
-            class="bg-white border-2 border-yellow-500 hover:bg-yellow-50 rounded-2xl p-8 shadow transition text-center">
-            <p class="text-4xl mb-3">📋</p>
-            <p class="text-lg font-bold text-red-800">Manage Tracked Events</p>
+            class="group bg-white border border-gray-100 rounded-2xl p-8 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 text-left">
+            <div class="w-12 h-12 rounded-full bg-yellow-50 flex items-center justify-center mb-4 group-hover:bg-yellow-100 transition-colors">
+              <svg class="w-6 h-6 text-yellow-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+            </div>
+            <p class="text-lg font-bold text-gray-900 mb-1">Manage Tracked Events</p>
+            <p class="text-sm text-gray-400">View, edit, and monitor events</p>
           </button>
+        </div>
+
+        <div class="grid grid-cols-3 gap-4 max-w-2xl mx-auto">
+          <div class="bg-white border border-gray-100 rounded-xl p-4 text-center shadow-sm">
+            <p id="stat-active-events" class="text-2xl font-bold text-gray-900">—</p>
+            <p class="text-xs text-gray-400 mt-1 tracking-wide uppercase">Active Events</p>
+          </div>
+          <div class="bg-white border border-gray-100 rounded-xl p-4 text-center shadow-sm">
+            <p id="stat-total-checkins" class="text-2xl font-bold text-gray-900">—</p>
+            <p class="text-xs text-gray-400 mt-1 tracking-wide uppercase">Total Checked In</p>
+          </div>
+          <div class="bg-white border border-gray-100 rounded-xl p-4 text-center shadow-sm">
+            <p id="stat-system-status" class="text-2xl font-bold text-green-600">●</p>
+            <p class="text-xs text-gray-400 mt-1 tracking-wide uppercase">System Status</p>
+          </div>
         </div>
       </div>
     </section>
@@ -229,125 +257,140 @@
     }
 
     function buildEventCardHTML(ev, category) {
+      const statusConfig = {
+        ongoing: { icon: `<span class="relative flex h-2 w-2"><span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span><span class="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span></span>`, badgeClass: "bg-green-50 text-green-700" },
+        upcoming: { icon: `<svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path stroke-linecap="round" stroke-linejoin="round" d="M12 7v5l3 3"/></svg>`, badgeClass: "bg-yellow-50 text-yellow-700" },
+        completed: { icon: `<svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>`, badgeClass: "bg-gray-100 text-gray-500" }
+      }[category];
+
       const overrideBadge = ev.status_override === 'force_open'
-        ? ' · <span class="font-semibold text-green-600">🔓 Forced Open</span>'
+        ? '<span class="inline-flex items-center gap-1 text-xs font-semibold text-green-600 bg-green-50 px-2 py-0.5 rounded-full ml-2">🔓 Forced Open</span>'
         : ev.status_override === 'force_closed'
-        ? ' · <span class="font-semibold text-red-600">🔒 Forced Closed</span>'
+        ? '<span class="inline-flex items-center gap-1 text-xs font-semibold text-red-600 bg-red-50 px-2 py-0.5 rounded-full ml-2">🔒 Forced Closed</span>'
         : '';
+
+      const secondaryBtn = "text-xs font-medium px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors";
+      const dangerBtn = "text-xs font-medium px-3 py-1.5 rounded-lg border border-red-100 text-red-600 hover:bg-red-50 transition-colors";
+      const goldBtn = "text-xs font-semibold px-3 py-1.5 rounded-lg bg-yellow-500 hover:bg-yellow-600 text-red-900 transition-colors";
+      const greenBtn = "text-xs font-medium px-3 py-1.5 rounded-lg border border-green-200 text-green-700 hover:bg-green-50 transition-colors";
+      const redBtn = "text-xs font-medium px-3 py-1.5 rounded-lg border border-red-200 text-red-700 hover:bg-red-50 transition-colors";
 
       let overrideButtons = '';
       if (isCoordinator) {
         if (category === 'ongoing') {
-          overrideButtons = `<button onclick="setOverride('${ev.id}', 'force_closed')" class="text-xs bg-red-100 hover:bg-red-200 text-red-800 px-2 py-1 rounded">Force Close Now</button>`;
+          overrideButtons = `<button onclick="setOverride('${ev.id}', 'force_closed')" class="${redBtn}">Force Close Now</button>`;
         } else if (category === 'upcoming') {
-          overrideButtons = `<button onclick="setOverride('${ev.id}', 'force_open')" class="text-xs bg-green-100 hover:bg-green-200 text-green-800 px-2 py-1 rounded">Force Open Now</button>`;
+          overrideButtons = `<button onclick="setOverride('${ev.id}', 'force_open')" class="${greenBtn}">Force Open Now</button>`;
         } else if (category === 'completed') {
-          overrideButtons = `<button onclick="setOverride('${ev.id}', 'force_open')" class="text-xs bg-green-100 hover:bg-green-200 text-green-800 px-2 py-1 rounded">Force Reopen</button>`;
+          overrideButtons = `<button onclick="setOverride('${ev.id}', 'force_open')" class="${greenBtn}">Force Reopen</button>`;
         }
         if (ev.status_override) {
-          overrideButtons += ` <button onclick="setOverride('${ev.id}', null)" class="text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-2 py-1 rounded">Clear Override</button>`;
+          overrideButtons += ` <button onclick="setOverride('${ev.id}', null)" class="${secondaryBtn}">Clear Override</button>`;
         }
       }
 
-      // QR generation utilities are disabled for Completed events, per spec
       const qrSection = category === 'completed' ? '' : `
-        <div class="flex gap-2 flex-wrap mt-2">
+        <div class="flex gap-2 flex-wrap mt-3 pt-3 border-t border-gray-50">
           ${ev.event_type === 'open' ? `
-            <button onclick="generateQR('${ev.id}', 'checkin', '${escapeQuotes(ev.name)}')" class="text-xs bg-yellow-500 hover:bg-yellow-600 text-red-900 font-semibold px-3 py-1.5 rounded-lg">Generate Check-In QR</button>
-            <button onclick="generateQR('${ev.id}', 'checkout', '${escapeQuotes(ev.name)}')" class="text-xs bg-yellow-500 hover:bg-yellow-600 text-red-900 font-semibold px-3 py-1.5 rounded-lg">Generate Check-Out QR</button>
+            <button onclick="generateQR('${ev.id}', 'checkin', '${escapeQuotes(ev.name)}')" class="${goldBtn}">Generate Check-In QR</button>
+            <button onclick="generateQR('${ev.id}', 'checkout', '${escapeQuotes(ev.name)}')" class="${goldBtn}">Generate Check-Out QR</button>
           ` : `
-            <button onclick="generateQR('${ev.id}', 'signin', '${escapeQuotes(ev.name)}')" class="text-xs bg-yellow-500 hover:bg-yellow-600 text-red-900 font-semibold px-3 py-1.5 rounded-lg">Generate Event QR</button>
+            <button onclick="generateQR('${ev.id}', 'signin', '${escapeQuotes(ev.name)}')" class="${goldBtn}">Generate Event QR</button>
           `}
         </div>
         <div id="qr-container-${ev.id}" class="flex gap-4 flex-wrap mt-3"></div>
       `;
 
       const rosterSection = ev.event_type === 'closed' ? `
-        <div class="mt-3 border-t pt-3">
-          <button onclick="toggleRoster('${ev.id}')" class="text-xs text-red-800 underline font-medium">Manage Roster</button>
-          <div id="roster-panel-${ev.id}" class="hidden mt-2 space-y-2">
-            <textarea id="roster-input-${ev.id}" rows="4" placeholder="Paste one name per line..." class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"></textarea>
-            <button onclick="submitRoster('${ev.id}')" class="text-xs bg-yellow-500 hover:bg-yellow-600 text-red-900 font-semibold px-3 py-1.5 rounded-lg">Add to Roster (mark Absent)</button>
-            <div class="border-t border-gray-200 pt-2 mt-2">
-              <p class="text-xs text-gray-500 mb-1">— or upload a CSV (one name per row, no header) —</p>
+        <div class="mt-3 pt-3 border-t border-gray-50">
+          <button onclick="toggleRoster('${ev.id}')" class="${secondaryBtn}">Manage Roster</button>
+          <div id="roster-panel-${ev.id}" class="hidden mt-3 space-y-2">
+            <textarea id="roster-input-${ev.id}" rows="4" placeholder="Paste one name per line..." class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-red-800 focus:border-red-800 transition-all"></textarea>
+            <button onclick="submitRoster('${ev.id}')" class="${goldBtn}">Add to Roster (mark Absent)</button>
+            <div class="pt-2 mt-2 border-t border-gray-50">
+              <p class="text-xs text-gray-400 mb-1">— or upload a CSV (one name per row, no header) —</p>
               <input type="file" id="roster-file-${ev.id}" accept=".csv" class="text-xs w-full" />
-              <button onclick="uploadRosterCSV('${ev.id}')" class="text-xs bg-yellow-500 hover:bg-yellow-600 text-red-900 font-semibold px-3 py-1.5 rounded-lg mt-1">Upload CSV (mark Absent)</button>
+              <button onclick="uploadRosterCSV('${ev.id}')" class="${goldBtn} mt-1">Upload CSV (mark Absent)</button>
             </div>
             <p id="roster-message-${ev.id}" class="text-xs"></p>
-            <div id="roster-list-${ev.id}" class="text-xs text-gray-600 mt-2"></div>
+            <div id="roster-list-${ev.id}" class="text-xs text-gray-500 mt-2"></div>
           </div>
         </div>
       ` : '';
 
       const editPanel = isCoordinator ? `
-        <div id="edit-panel-${ev.id}" class="hidden mt-3 space-y-2 bg-gray-50 border border-gray-200 rounded-lg p-3">
+        <div id="edit-panel-${ev.id}" class="hidden mt-3 space-y-3 bg-gray-50 border border-gray-100 rounded-xl p-4">
           <div>
-            <label class="block text-xs font-medium text-gray-600 mb-1">Event Name</label>
-            <input type="text" id="edit-name-${ev.id}" value="${escapeQuotes(ev.name)}" class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
+            <label class="block text-xs font-medium text-gray-500 mb-1">Event Name</label>
+            <input type="text" id="edit-name-${ev.id}" value="${escapeQuotes(ev.name)}" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-red-800 focus:border-red-800 transition-all" />
           </div>
-          <div class="grid grid-cols-2 gap-2">
+          <div class="grid grid-cols-2 gap-3">
             <div>
-              <label class="block text-xs font-medium text-gray-600 mb-1">Start Time</label>
-              <input type="datetime-local" id="edit-start-${ev.id}" value="${isoToDatetimeLocalValue(ev.start_time)}" class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
+              <label class="block text-xs font-medium text-gray-500 mb-1">Start Time</label>
+              <input type="datetime-local" id="edit-start-${ev.id}" value="${isoToDatetimeLocalValue(ev.start_time)}" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-red-800 focus:border-red-800 transition-all" />
             </div>
             <div>
-              <label class="block text-xs font-medium text-gray-600 mb-1">End Time</label>
-              <input type="datetime-local" id="edit-end-${ev.id}" value="${isoToDatetimeLocalValue(ev.end_time)}" class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
-            </div>
-          </div>
-          <div class="grid grid-cols-3 gap-2">
-            <div>
-              <label class="block text-xs font-medium text-gray-600 mb-1">Latitude</label>
-              <input type="number" step="any" id="edit-lat-${ev.id}" value="${ev.latitude ?? ''}" class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
-            </div>
-            <div>
-              <label class="block text-xs font-medium text-gray-600 mb-1">Longitude</label>
-              <input type="number" step="any" id="edit-lng-${ev.id}" value="${ev.longitude ?? ''}" class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
-            </div>
-            <div>
-              <label class="block text-xs font-medium text-gray-600 mb-1">Radius (m)</label>
-              <input type="number" id="edit-radius-${ev.id}" value="${ev.radius_meters ?? 100}" class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
+              <label class="block text-xs font-medium text-gray-500 mb-1">End Time</label>
+              <input type="datetime-local" id="edit-end-${ev.id}" value="${isoToDatetimeLocalValue(ev.end_time)}" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-red-800 focus:border-red-800 transition-all" />
             </div>
           </div>
-          <div class="border border-gray-200 rounded-lg p-2">
+          <div class="grid grid-cols-3 gap-3">
+            <div>
+              <label class="block text-xs font-medium text-gray-500 mb-1">Latitude</label>
+              <input type="number" step="any" id="edit-lat-${ev.id}" value="${ev.latitude ?? ''}" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-red-800 focus:border-red-800 transition-all" />
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-gray-500 mb-1">Longitude</label>
+              <input type="number" step="any" id="edit-lng-${ev.id}" value="${ev.longitude ?? ''}" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-red-800 focus:border-red-800 transition-all" />
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-gray-500 mb-1">Radius (m)</label>
+              <input type="number" id="edit-radius-${ev.id}" value="${ev.radius_meters ?? 100}" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-red-800 focus:border-red-800 transition-all" />
+            </div>
+          </div>
+          <div class="border border-gray-200 rounded-lg p-3 bg-white">
             <label class="flex items-center gap-2 text-xs font-semibold text-red-800">
               <input type="checkbox" id="edit-strict-${ev.id}" ${ev.use_strict_timings ? 'checked' : ''}
                 onchange="document.getElementById('edit-strict-fields-${ev.id}').classList.toggle('hidden', !this.checked)" class="rounded" />
               Enable Strict Phase Timings
             </label>
-            <div id="edit-strict-fields-${ev.id}" class="${ev.use_strict_timings ? '' : 'hidden'} mt-2 space-y-2">
-              <div class="grid grid-cols-2 gap-2">
-                <div><label class="block text-xs font-medium text-gray-600 mb-1">Check-In Opens</label><input type="datetime-local" id="edit-checkin-start-${ev.id}" value="${isoToDatetimeLocalValue(ev.checkin_start)}" class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" /></div>
-                <div><label class="block text-xs font-medium text-gray-600 mb-1">Check-In Closes</label><input type="datetime-local" id="edit-checkin-end-${ev.id}" value="${isoToDatetimeLocalValue(ev.checkin_end)}" class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" /></div>
+            <div id="edit-strict-fields-${ev.id}" class="${ev.use_strict_timings ? '' : 'hidden'} mt-3 space-y-2">
+              <div class="grid grid-cols-2 gap-3">
+                <div><label class="block text-xs font-medium text-gray-500 mb-1">Check-In Opens</label><input type="datetime-local" id="edit-checkin-start-${ev.id}" value="${isoToDatetimeLocalValue(ev.checkin_start)}" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-red-800 focus:border-red-800 transition-all" /></div>
+                <div><label class="block text-xs font-medium text-gray-500 mb-1">Check-In Closes</label><input type="datetime-local" id="edit-checkin-end-${ev.id}" value="${isoToDatetimeLocalValue(ev.checkin_end)}" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-red-800 focus:border-red-800 transition-all" /></div>
               </div>
-              <div class="grid grid-cols-2 gap-2">
-                <div><label class="block text-xs font-medium text-gray-600 mb-1">Check-Out Opens</label><input type="datetime-local" id="edit-checkout-start-${ev.id}" value="${isoToDatetimeLocalValue(ev.checkout_start)}" class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" /></div>
-                <div><label class="block text-xs font-medium text-gray-600 mb-1">Check-Out Closes</label><input type="datetime-local" id="edit-checkout-end-${ev.id}" value="${isoToDatetimeLocalValue(ev.checkout_end)}" class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" /></div>
+              <div class="grid grid-cols-2 gap-3">
+                <div><label class="block text-xs font-medium text-gray-500 mb-1">Check-Out Opens</label><input type="datetime-local" id="edit-checkout-start-${ev.id}" value="${isoToDatetimeLocalValue(ev.checkout_start)}" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-red-800 focus:border-red-800 transition-all" /></div>
+                <div><label class="block text-xs font-medium text-gray-500 mb-1">Check-Out Closes</label><input type="datetime-local" id="edit-checkout-end-${ev.id}" value="${isoToDatetimeLocalValue(ev.checkout_end)}" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-red-800 focus:border-red-800 transition-all" /></div>
               </div>
             </div>
           </div>
           <div>
-            <label class="block text-xs font-medium text-gray-600 mb-1">Custom Question (optional)</label>
-            <textarea id="edit-question-${ev.id}" rows="2" class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm">${ev.custom_question || ''}</textarea>
+            <label class="block text-xs font-medium text-gray-500 mb-1">Custom Question (optional)</label>
+            <textarea id="edit-question-${ev.id}" rows="2" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-red-800 focus:border-red-800 transition-all">${ev.custom_question || ''}</textarea>
           </div>
           <div class="flex gap-2">
-            <button onclick="saveEventEdit('${ev.id}')" class="text-xs bg-red-800 hover:bg-red-900 text-white font-semibold px-3 py-1.5 rounded-lg">Save Changes</button>
-            <button onclick="toggleEditEvent('${ev.id}')" class="text-xs text-gray-500 underline">Cancel</button>
+            <button onclick="saveEventEdit('${ev.id}')" class="text-xs bg-red-800 hover:bg-red-900 text-white font-semibold px-4 py-2 rounded-lg transition-colors">Save Changes</button>
+            <button onclick="toggleEditEvent('${ev.id}')" class="${secondaryBtn}">Cancel</button>
           </div>
           <p id="edit-message-${ev.id}" class="text-xs"></p>
         </div>
       ` : '';
 
       return `
-        <div class="border border-gray-200 rounded-lg p-3 bg-white ${category === 'completed' ? 'opacity-60' : ''}">
-          <div class="flex justify-between items-center mb-2">
+        <div class="border border-gray-100 rounded-xl shadow-sm hover:shadow-md transition-all duration-200 p-5 mb-4 bg-white ${category === 'completed' ? 'opacity-70' : ''}">
+          <div class="flex justify-between items-start mb-3">
             <div>
-              <p class="font-medium text-gray-800">${ev.name}</p>
-              <p class="text-xs text-gray-500">${ev.event_date} · ${ev.event_type === 'open' ? 'Open Event' : 'Closed Event'}${overrideBadge}</p>
+              <div class="flex items-center gap-2 mb-1">
+                <span class="inline-flex items-center gap-1.5 text-xs font-semibold px-2 py-0.5 rounded-full ${statusConfig.badgeClass}">${statusConfig.icon}${category.charAt(0).toUpperCase() + category.slice(1)}</span>
+                ${overrideBadge}
+              </div>
+              <p class="font-semibold text-gray-900">${ev.name}</p>
+              <p class="text-xs text-gray-400 mt-0.5">${ev.event_date} · ${ev.event_type === 'open' ? 'Open Event' : 'Closed Event'}</p>
             </div>
           </div>
 
-          <a href="report.html?event=${ev.id}" class="text-xs text-red-800 underline font-medium block mb-2">
+          <a href="report.html?event=${ev.id}" class="inline-flex items-center gap-1 text-xs text-red-800 font-medium hover:underline mb-2">
             ${category === 'completed' ? '📊 View Report & Export' : 'View Report →'}
           </a>
 
@@ -355,15 +398,12 @@
           ${rosterSection}
 
           ${isCoordinator ? `
-            <div class="mt-3 border-t pt-3">
-              <div class="flex gap-2 flex-wrap items-center">
-                <button onclick="toggleEditEvent('${ev.id}')" class="text-xs text-red-800 underline font-medium">Edit Event</button>
-                <button onclick="deleteEvent('${ev.id}', '${escapeQuotes(ev.name)}')" class="text-xs text-red-600 underline font-medium">Delete Event</button>
-                <span class="text-gray-300">|</span>
-                ${overrideButtons}
-              </div>
-              ${editPanel}
+            <div class="mt-3 pt-3 border-t border-gray-50 flex gap-2 flex-wrap items-center">
+              <button onclick="toggleEditEvent('${ev.id}')" class="${secondaryBtn}">Edit Event</button>
+              <button onclick="deleteEvent('${ev.id}', '${escapeQuotes(ev.name)}')" class="${dangerBtn}">Delete Event</button>
+              ${overrideButtons}
             </div>
+            ${editPanel}
           ` : ''}
         </div>
       `;
@@ -857,7 +897,19 @@
       if (!isCoordinator) {
         document.getElementById("hub-create-card").classList.add("hidden");
       }
-      // Dashboard hub is already visible by default -- nothing else to load yet
+      populateHubStats();
+    }
+
+    async function populateHubStats() {
+      const { data: events } = await supabaseClient.from("events").select("*");
+      const activeCount = (events || []).filter(ev => getEventCategory(ev) === 'ongoing').length;
+      document.getElementById("stat-active-events").textContent = activeCount;
+
+      const { count } = await supabaseClient
+        .from("attendance_records")
+        .select("*", { count: "exact", head: true })
+        .in("status", ["Present", "Partial"]);
+      document.getElementById("stat-total-checkins").textContent = count ?? "—";
     }
   </script>
 </body>

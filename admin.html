@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="icon" type="image/png" href="logo.png">
   <title>Admin Portal — QR Attendance Tracker</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -61,25 +62,16 @@
           </button>
         </div>
 
-        <div class="grid grid-cols-3 gap-4 max-w-2xl mx-auto">
-          <div class="bg-white border border-gray-100 rounded-xl p-4 text-center shadow-sm">
-            <p id="stat-active-events" class="text-2xl font-bold text-gray-900">—</p>
-            <p class="text-xs text-gray-400 mt-1 tracking-wide uppercase">Active Events</p>
-          </div>
-          <div class="bg-white border border-gray-100 rounded-xl p-4 text-center shadow-sm">
-            <p id="stat-total-checkins" class="text-2xl font-bold text-gray-900">—</p>
-            <p class="text-xs text-gray-400 mt-1 tracking-wide uppercase">Total Checked In</p>
-          </div>
-          <div class="bg-white border border-gray-100 rounded-xl p-4 text-center shadow-sm">
-            <p id="stat-system-status" class="text-2xl font-bold text-green-600">●</p>
-            <p class="text-xs text-gray-400 mt-1 tracking-wide uppercase">System Status</p>
-          </div>
+        <div class="max-w-2xl mx-auto">
+          <h2 class="text-xs font-bold text-gray-500 tracking-wide uppercase mb-3">⚡ Live System Activity Ticker</h2>
+          <div id="hub-recent-activity" class="bg-white border border-gray-100 rounded-xl shadow-sm divide-y divide-gray-50"></div>
         </div>
       </div>
     </section>
 
     <!-- ============ VIEW 2: EVENT CREATOR ============ -->
     <section id="event-creator-view" class="hidden max-w-2xl mx-auto p-6">
+      <p class="text-xs text-gray-400 mb-2">Dashboard / <span class="text-gray-600 font-medium">Create New Event</span></p>
       <button onclick="showView('hub')" class="text-red-800 text-sm underline mb-4 inline-block">← Back to Dashboard</button>
 
       <div class="bg-white rounded-xl shadow p-6 border border-gray-200">
@@ -90,13 +82,13 @@
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">Event Name</label>
             <input type="text" id="event-name" required
-              class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500"
+              class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-2 focus:ring-red-800 focus:outline-none"
               placeholder="e.g. First Friday Mass - August 2026" />
           </div>
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">Event Type</label>
             <select id="event-type" required
-              class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500">
+              class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-2 focus:ring-red-800 focus:outline-none">
               <option value="">-- Select --</option>
               <option value="open">Open (e.g. Mass — separate Check-In / Check-Out)</option>
               <option value="closed">Closed (e.g. Retreat — pre-loaded roster)</option>
@@ -105,7 +97,7 @@
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">Event Date</label>
             <input type="date" id="event-date" required
-              class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500" />
+              class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-2 focus:ring-red-800 focus:outline-none" />
           </div>
 
           <div class="grid grid-cols-2 gap-3">
@@ -199,18 +191,31 @@
 
     <!-- ============ VIEW 3: EVENT MANAGER ============ -->
     <section id="event-manager-view" class="hidden max-w-4xl mx-auto p-6">
+      <p class="text-xs text-gray-400 mb-2">Dashboard / <span class="text-gray-600 font-medium">Manage Tracked Events</span></p>
       <button onclick="showView('hub')" class="text-red-800 text-sm underline mb-4 inline-block">← Back to Dashboard</button>
-      <h2 class="text-2xl font-bold text-red-800 mb-6">Manage Tracked Events</h2>
+      <h2 class="text-2xl font-bold text-gray-900 mb-4">Manage Tracked Events</h2>
 
-      <div class="mb-8">
-        <h3 class="text-lg font-semibold text-green-700 mb-3">🟢 Ongoing Events</h3>
-        <div id="ongoing-events" class="space-y-3"><p class="text-sm text-gray-400">Loading...</p></div>
+      <div class="mb-6">
+        <input type="text" id="manager-search" placeholder="Search events by name..."
+          oninput="currentSearchTerm = this.value; applyManagerFilters();"
+          class="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm mb-3 focus:ring-2 focus:ring-red-800 focus:outline-none" />
+        <div class="flex gap-2 flex-wrap">
+          <button id="chip-all" onclick="setManagerFilterChip('all')" class="text-xs font-semibold px-3 py-1.5 rounded-full bg-red-800 text-white">All</button>
+          <button id="chip-ongoing" onclick="setManagerFilterChip('ongoing')" class="text-xs font-semibold px-3 py-1.5 rounded-full bg-gray-100 text-gray-600 hover:bg-gray-200">Ongoing</button>
+          <button id="chip-upcoming" onclick="setManagerFilterChip('upcoming')" class="text-xs font-semibold px-3 py-1.5 rounded-full bg-gray-100 text-gray-600 hover:bg-gray-200">Upcoming</button>
+          <button id="chip-completed" onclick="setManagerFilterChip('completed')" class="text-xs font-semibold px-3 py-1.5 rounded-full bg-gray-100 text-gray-600 hover:bg-gray-200">Completed</button>
+        </div>
       </div>
-      <div class="mb-8">
+
+      <div id="ongoing-section" class="mb-8">
+        <h3 class="text-lg font-semibold text-green-700 mb-3">🟢 Ongoing Events</h3>
+        <div id="ongoing-events" class="space-y-3"></div>
+      </div>
+      <div id="upcoming-section" class="mb-8">
         <h3 class="text-lg font-semibold text-yellow-700 mb-3">🕒 Upcoming Events</h3>
         <div id="upcoming-events" class="space-y-3"></div>
       </div>
-      <div class="mb-8">
+      <div id="completed-section" class="mb-8">
         <h3 class="text-lg font-semibold text-gray-500 mb-3">✅ Completed Events</h3>
         <div id="completed-events" class="space-y-3"></div>
       </div>
@@ -525,7 +530,14 @@
       }
     });
 
+    let currentFilterChip = 'all';
+    let currentSearchTerm = '';
+
     async function loadEvents() {
+      document.getElementById("ongoing-events").innerHTML = skeletonCards(2);
+      document.getElementById("upcoming-events").innerHTML = skeletonCards(2);
+      document.getElementById("completed-events").innerHTML = skeletonCards(2);
+
       const { data, error } = await supabaseClient
         .from("events")
         .select("*")
@@ -537,22 +549,78 @@
       }
 
       allEventsData = data;
+      applyManagerFilters();
+    }
+
+    function applyManagerFilters() {
+      const term = currentSearchTerm.toLowerCase().trim();
+      const filtered = allEventsData.filter(ev => !term || ev.name.toLowerCase().includes(term));
 
       const buckets = { ongoing: [], upcoming: [], completed: [] };
-      data.forEach(ev => buckets[getEventCategory(ev)].push(ev));
+      filtered.forEach(ev => buckets[getEventCategory(ev)].push(ev));
+
+      document.getElementById("ongoing-section").classList.toggle("hidden", currentFilterChip !== 'all' && currentFilterChip !== 'ongoing');
+      document.getElementById("upcoming-section").classList.toggle("hidden", currentFilterChip !== 'all' && currentFilterChip !== 'upcoming');
+      document.getElementById("completed-section").classList.toggle("hidden", currentFilterChip !== 'all' && currentFilterChip !== 'completed');
 
       renderBucket("ongoing-events", buckets.ongoing, "ongoing", "No events currently ongoing.");
       renderBucket("upcoming-events", buckets.upcoming, "upcoming", "No upcoming events scheduled.");
       renderBucket("completed-events", buckets.completed, "completed", "No completed events yet.");
     }
 
+    function setManagerFilterChip(chip) {
+      currentFilterChip = chip;
+      ['all', 'ongoing', 'upcoming', 'completed'].forEach(c => {
+        const btn = document.getElementById(`chip-${c}`);
+        btn.className = (c === chip)
+          ? "text-xs font-semibold px-3 py-1.5 rounded-full bg-red-800 text-white"
+          : "text-xs font-semibold px-3 py-1.5 rounded-full bg-gray-100 text-gray-600 hover:bg-gray-200";
+      });
+      applyManagerFilters();
+    }
+
+    // Splits events into Today / This Week / Later based on event_date
+    function groupByTimeframe(events) {
+      const now = new Date();
+      const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const endOfToday = new Date(startOfToday.getTime() + 24 * 60 * 60 * 1000);
+      const endOfWeek = new Date(startOfToday.getTime() + 7 * 24 * 60 * 60 * 1000);
+
+      const groups = { today: [], thisWeek: [], later: [] };
+      events.forEach(ev => {
+        const d = new Date(ev.event_date);
+        if (d >= startOfToday && d < endOfToday) groups.today.push(ev);
+        else if (d >= endOfToday && d < endOfWeek) groups.thisWeek.push(ev);
+        else groups.later.push(ev);
+      });
+      return groups;
+    }
+
     function renderBucket(containerId, events, category, emptyMessage) {
       const el = document.getElementById(containerId);
+
       if (events.length === 0) {
-        el.innerHTML = `<p class="text-sm text-gray-400">${emptyMessage}</p>`;
+        el.innerHTML = `
+          <div class="text-center py-8 border border-dashed border-gray-200 rounded-xl">
+            <p class="text-sm text-gray-400 mb-2">${emptyMessage}</p>
+            <button onclick="showView('creator')" class="text-sm text-red-800 font-medium hover:underline">Create one now →</button>
+          </div>
+        `;
         return;
       }
-      el.innerHTML = events.map(ev => buildEventCardHTML(ev, category)).join("");
+
+      if (category !== 'upcoming') {
+        el.innerHTML = events.map(ev => buildEventCardHTML(ev, category)).join("");
+        return;
+      }
+
+      const groups = groupByTimeframe(events);
+      let html = '';
+      const heading = (label) => `<h4 class="text-xs font-bold text-gray-400 uppercase tracking-wide mt-4 mb-2 first:mt-0">${label}</h4>`;
+      if (groups.today.length) html += heading("Today") + groups.today.map(ev => buildEventCardHTML(ev, category)).join("");
+      if (groups.thisWeek.length) html += heading("This Week") + groups.thisWeek.map(ev => buildEventCardHTML(ev, category)).join("");
+      if (groups.later.length) html += heading("Later") + groups.later.map(ev => buildEventCardHTML(ev, category)).join("");
+      el.innerHTML = html;
     }
 
     function escapeQuotes(str) {
@@ -623,34 +691,26 @@
     // Sets or clears the manual open/close override on an event.
     // value is 'force_open', 'force_closed', or null to clear it.
     async function setOverride(eventId, value) {
-      const { error } = await supabaseClient
-        .from("events")
-        .update({ status_override: value })
-        .eq("id", eventId);
-
+      const { error } = await supabaseClient.from("events").update({ status_override: value }).eq("id", eventId);
       if (error) {
-        alert("Error updating override: " + error.message);
+        showToast("Error updating: " + error.message, "error");
         return;
       }
       loadEvents();
     }
 
     async function deleteEvent(eventId, eventName) {
-      const confirmed = confirm(
+      const confirmed = await showConfirmDialog(
         `Permanently delete "${eventName}"?\n\nThis will also delete ALL attendance records, roster entries, and device locks for this event. This cannot be undone.`
       );
       if (!confirmed) return;
 
-      const { error } = await supabaseClient
-        .from("events")
-        .delete()
-        .eq("id", eventId);
-
+      const { error } = await supabaseClient.from("events").delete().eq("id", eventId);
       if (error) {
-        alert("Error deleting event: " + error.message);
+        showToast("Error deleting event: " + error.message, "error");
         return;
       }
-
+      showToast(`"${eventName}" deleted successfully.`);
       loadEvents();
     }
 
@@ -878,17 +938,15 @@
     }
 
     async function deleteRosterEntry(eventId, recordId) {
-      if (!confirm("Remove this student from the roster entirely?")) return;
+      const confirmed = await showConfirmDialog("Remove this student from the roster entirely?");
+      if (!confirmed) return;
 
-      const { error } = await supabaseClient
-        .from("attendance_records")
-        .delete()
-        .eq("id", recordId);
-
+      const { error } = await supabaseClient.from("attendance_records").delete().eq("id", recordId);
       if (error) {
-        alert("Error deleting: " + error.message);
+        showToast("Error deleting: " + error.message, "error");
         return;
       }
+      showToast("Student removed from roster.");
       loadRoster(eventId);
     }
 
@@ -897,20 +955,110 @@
       if (!isCoordinator) {
         document.getElementById("hub-create-card").classList.add("hidden");
       }
-      populateHubStats();
+     populateRecentActivity();
     }
 
-    async function populateHubStats() {
-      const { data: events } = await supabaseClient.from("events").select("*");
-      const activeCount = (events || []).filter(ev => getEventCategory(ev) === 'ongoing').length;
-      document.getElementById("stat-active-events").textContent = activeCount;
+    async function populateRecentActivity() {
+      const container = document.getElementById("hub-recent-activity");
+      container.innerHTML = skeletonRows(4);
 
-      const { count } = await supabaseClient
+      const { data, error } = await supabaseClient
         .from("attendance_records")
-        .select("*", { count: "exact", head: true })
-        .in("status", ["Present", "Partial"]);
-      document.getElementById("stat-total-checkins").textContent = count ?? "—";
+        .select("first_name, last_name, status, created_at, events(name)")
+        .order("created_at", { ascending: false })
+        .limit(6);
+
+      if (error || !data || data.length === 0) {
+        container.innerHTML = `<p class="text-sm text-gray-400 text-center py-6">No recent activity yet.</p>`;
+        return;
+      }
+
+      container.innerHTML = data.map(r => `
+        <div class="flex items-center gap-3 px-4 py-3">
+          <span class="relative flex h-2 w-2 shrink-0">
+            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+            <span class="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+          </span>
+          <div class="flex-1 min-w-0">
+            <p class="text-sm font-medium text-gray-800 truncate">${r.last_name}, ${r.first_name}</p>
+            <p class="text-xs text-gray-400 truncate">${r.events ? r.events.name : 'Unknown Event'} · ${r.status}</p>
+          </div>
+          <p class="text-xs text-gray-400 shrink-0">${timeAgo(r.created_at)}</p>
+        </div>
+      `).join("");
+    }
+
+    function timeAgo(isoString) {
+      const seconds = Math.floor((new Date() - new Date(isoString)) / 1000);
+      if (seconds < 60) return "just now";
+      const minutes = Math.floor(seconds / 60);
+      if (minutes < 60) return `${minutes}m ago`;
+      const hours = Math.floor(minutes / 60);
+      if (hours < 24) return `${hours}h ago`;
+      return `${Math.floor(hours / 24)}d ago`;
+    }
+
+    function skeletonRows(count) {
+      return Array.from({ length: count }).map(() => `
+        <div class="flex items-center gap-3 px-4 py-3 animate-pulse">
+          <div class="w-2 h-2 rounded-full bg-gray-200 shrink-0"></div>
+          <div class="flex-1 space-y-2">
+            <div class="h-3 bg-gray-200 rounded w-1/3"></div>
+            <div class="h-2 bg-gray-100 rounded w-1/2"></div>
+          </div>
+        </div>
+      `).join("");
+    }
+
+    function showToast(message, type = "success") {
+      const container = document.getElementById("toast-container");
+      const toast = document.createElement("div");
+      const isSuccess = type === "success";
+      toast.className = `flex items-center gap-2 px-4 py-3 rounded-lg shadow-lg text-sm font-medium text-white transition-all duration-300 opacity-0 translate-y-2 ${isSuccess ? 'bg-green-600' : 'bg-red-700'}`;
+      toast.innerHTML = `<span>${isSuccess ? '✅' : '⚠️'}</span><span>${message}</span>`;
+      container.appendChild(toast);
+
+      requestAnimationFrame(() => toast.classList.remove("opacity-0", "translate-y-2"));
+
+      setTimeout(() => {
+        toast.classList.add("opacity-0", "translate-y-2");
+        setTimeout(() => toast.remove(), 300);
+      }, 3000);
+    }
+
+    // Promise-based replacement for window.confirm(). Because a real modal
+    // can't return a value synchronously the way confirm() does, callers now
+    // need "await" -- see the updated deleteEvent()/deleteRosterEntry() below.
+    function showConfirmDialog(message) {
+      return new Promise((resolve) => {
+        const overlay = document.createElement("div");
+        overlay.className = "fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-[110] p-4";
+        overlay.innerHTML = `
+          <div class="bg-white rounded-xl shadow-2xl max-w-sm w-full p-5">
+            <p class="text-sm text-gray-700 mb-4 whitespace-pre-line">${message}</p>
+            <div class="flex justify-end gap-2">
+              <button id="confirm-cancel" class="text-xs font-medium px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50">Cancel</button>
+              <button id="confirm-ok" class="text-xs font-semibold px-3 py-1.5 rounded-lg bg-red-800 hover:bg-red-900 text-white">Confirm</button>
+            </div>
+          </div>
+        `;
+        document.body.appendChild(overlay);
+        overlay.querySelector("#confirm-cancel").onclick = () => { overlay.remove(); resolve(false); };
+        overlay.querySelector("#confirm-ok").onclick = () => { overlay.remove(); resolve(true); };
+      });
+    }
+
+    function skeletonCards(count) {
+      return Array.from({ length: count }).map(() => `
+        <div class="border border-gray-100 rounded-xl p-5 mb-4 bg-white animate-pulse">
+          <div class="h-3 bg-gray-200 rounded w-20 mb-3"></div>
+          <div class="h-4 bg-gray-200 rounded w-1/2 mb-2"></div>
+          <div class="h-3 bg-gray-100 rounded w-1/3"></div>
+        </div>
+      `).join("");
     }
   </script>
+
+  <div id="toast-container" class="fixed bottom-4 right-4 z-[100] flex flex-col gap-2"></div>
 </body>
 </html>

@@ -62,6 +62,12 @@
           </button>
         </div>
 
+        <div class="max-w-2xl mx-auto relative mb-6">
+          <input type="text" id="dashboard-student-search" placeholder="🔍 Search student by name..."
+            class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm shadow-sm focus:ring-2 focus:ring-red-800 focus:outline-none transition-all" />
+          <div id="dashboard-search-results" class="hidden absolute z-20 left-0 right-0 mt-2 bg-white border border-gray-100 rounded-xl shadow-lg max-h-72 overflow-y-auto"></div>
+        </div>
+
         <div class="max-w-2xl mx-auto">
           <h2 class="text-xs font-bold text-gray-500 tracking-wide uppercase mb-3">⚡ Live System Activity Ticker</h2>
           <div id="hub-recent-activity" class="bg-white border border-gray-100 rounded-xl shadow-sm divide-y divide-gray-50"></div>
@@ -1009,6 +1015,66 @@
         </div>
       `).join("");
     }
+
+    let studentSearchDebounce = null;
+
+    document.getElementById("dashboard-student-search").addEventListener("input", function () {
+      const term = this.value.trim();
+      clearTimeout(studentSearchDebounce);
+
+      const resultsEl = document.getElementById("dashboard-search-results");
+      if (term.length < 2) {
+        resultsEl.classList.add("hidden");
+        resultsEl.innerHTML = "";
+        return;
+      }
+
+      // Waits 300ms after the last keystroke before querying, so typing a
+      // full name doesn't fire a database call on every single character
+      studentSearchDebounce = setTimeout(() => runStudentSearch(term), 300);
+    });
+
+    async function runStudentSearch(term) {
+      const resultsEl = document.getElementById("dashboard-search-results");
+      resultsEl.classList.remove("hidden");
+      resultsEl.innerHTML = skeletonRows(2);
+
+      const { data, error } = await supabaseClient
+        .from("attendance_records")
+        .select("first_name, middle_name, last_name, department, program, status, events(name)")
+        .or(`first_name.ilike.%${term}%,last_name.ilike.%${term}%`)
+        .order("last_name")
+        .limit(8);
+
+      if (error) {
+        resultsEl.innerHTML = `<p class="text-sm text-red-600 p-4">Error searching: ${error.message}</p>`;
+        return;
+      }
+
+      if (!data || data.length === 0) {
+        resultsEl.innerHTML = `<p class="text-sm text-gray-400 p-4 text-center">No matching students found.</p>`;
+        return;
+      }
+
+      resultsEl.innerHTML = data.map(r => `
+        <div class="flex items-center justify-between px-4 py-3 border-b border-gray-50 last:border-0 hover:bg-gray-50">
+          <div class="min-w-0">
+            <p class="text-sm font-medium text-gray-800 truncate">${r.last_name}, ${r.first_name} ${r.middle_name || ''}</p>
+            <p class="text-xs text-gray-400 truncate">${[r.department, r.program].filter(Boolean).join(' / ') || '—'} · ${r.events ? r.events.name : 'Unknown Event'}</p>
+          </div>
+          <span class="text-xs font-semibold px-2 py-0.5 rounded-full shrink-0 ml-2 ${r.status === 'Present' ? 'bg-green-50 text-green-700' : r.status === 'Partial' ? 'bg-yellow-50 text-yellow-700' : 'bg-gray-100 text-gray-500'}">${r.status}</span>
+        </div>
+      `).join("");
+    }
+
+    // Dismisses the results dropdown when clicking anywhere else on the page
+    document.addEventListener("click", function (e) {
+      const input = document.getElementById("dashboard-student-search");
+      const resultsEl = document.getElementById("dashboard-search-results");
+      if (!input.contains(e.target) && !resultsEl.contains(e.target)) {
+        resultsEl.classList.add("hidden");
+      }
+    });
 
     function showToast(message, type = "success") {
       const container = document.getElementById("toast-container");

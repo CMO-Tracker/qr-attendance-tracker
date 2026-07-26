@@ -104,23 +104,10 @@
   </main>
 
   <script src="config.js"></script>
+  <script src="security.js"></script>
+   <script src="auth.js"></script>
   <script>
-    let currentAdminRole = null;
-    async function requireAuth() {
-      const { data: { session } } = await supabaseClient.auth.getSession();
-      if (!session) { window.location.href = "admin-login.html"; return; }
-      const { data: roleRow, error } = await supabaseClient
-        .from("admin_roles").select("role").eq("id", session.user.id).single();
-      if (error || !roleRow) {
-        alert("Your account has no admin role assigned. Contact the coordinator.");
-        await supabaseClient.auth.signOut();
-        window.location.href = "admin-login.html";
-        return;
-      }
-      currentAdminRole = roleRow.role;
-      loadInsights(); // both roles can view insights — no gating needed here
-    }
-    requireAuth();
+    requireAuth(loadInsights); // both roles can view insights — no gating needed here
   </script>
   <script src="nameParser.js"></script>
   <script>
@@ -283,7 +270,7 @@
 
       tbody.innerHTML = rows.map(r => `
         <tr class="border-t border-gray-100">
-          <td class="px-3 py-2">${r.name}</td>
+          <td class="px-3 py-2">${escapeHtml(r.name)}</td>
           <td class="px-3 py-2">${r.date}</td>
           <td class="px-3 py-2">${r.checkedIn}</td>
           <td class="px-3 py-2">${r.checkedOut}</td>
@@ -338,7 +325,7 @@
 
       tbody.innerHTML = rows.map(s => `
         <tr class="border-t border-gray-100">
-          <td class="px-3 py-2">${s.lastName}, ${s.firstName} ${s.middleName || ''}</td>
+          <td class="px-3 py-2">${escapeHtml(s.lastName)}, ${escapeHtml(s.firstName)} ${escapeHtml(s.middleName || '')}</td>
           <td class="px-3 py-2">${[s.department, s.program].filter(Boolean).join(' / ') || '—'}</td>
           <td class="px-3 py-2">${[s.yearLevel, s.section].filter(Boolean).join(' / ') || '—'}</td>
           <td class="px-3 py-2">${s.closedRostered > 0 ? `${s.closedPresent}/${s.closedRostered}` : '—'}</td>

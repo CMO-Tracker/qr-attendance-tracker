@@ -95,13 +95,12 @@
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">Event Name</label>
             <input type="text" id="event-name" required
-              class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-2 focus:ring-red-800 focus:outline-none"
-              placeholder="e.g. First Friday Mass - August 2026" />
+              class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-red-800 focus:outline-none
           </div>
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">Event Type</label>
             <select id="event-type" required
-              class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-2 focus:ring-red-800 focus:outline-none">
+              class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-red-800 focus:outline-none
               <option value="">-- Select --</option>
               <option value="open">Open (e.g. Mass — separate Check-In / Check-Out)</option>
               <option value="closed">Closed (e.g. Retreat — pre-loaded roster)</option>
@@ -110,8 +109,7 @@
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">Event Date</label>
             <input type="date" id="event-date" required
-              class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-2 focus:ring-red-800 focus:outline-none" />
-          </div>
+              class="w-full border border-gray-300 rounded-lg px-3 py-2 ffocus:ring-2 focus:ring-red-800 focus:outline-none
 
           <div class="grid grid-cols-2 gap-3">
             <div>
@@ -237,9 +235,9 @@
   </main>
 
   <script src="config.js"></script>
+  <script src="security.js"></script>
+  <script src="auth.js"></script>
   <script>
-    let currentAdminRole = null;
-
     let isCoordinator = false;
     let allEventsData = [];
 
@@ -307,7 +305,7 @@
         }
       }
 
-      const qrSection = category === 'completed' ? '' : `
+      const qrSection = (category === 'completed' || !isCoordinator) ? '' : `
         <div class="flex gap-2 flex-wrap mt-3 pt-3 border-t border-gray-50">
           ${ev.event_type === 'open' ? `
             <button onclick="generateQR('${ev.id}', 'checkin', '${escapeQuotes(ev.name)}')" class="${goldBtn}">Generate Check-In QR</button>
@@ -319,7 +317,7 @@
         <div id="qr-container-${ev.id}" class="flex gap-4 flex-wrap mt-3"></div>
       `;
 
-      const rosterSection = ev.event_type === 'closed' ? `
+      const rosterSection = (ev.event_type === 'closed' && isCoordinator) ? `
         <div class="mt-3 pt-3 border-t border-gray-50">
           <button onclick="toggleRoster('${ev.id}')" class="${secondaryBtn}">Manage Roster</button>
           <div id="roster-panel-${ev.id}" class="hidden mt-3 space-y-2">
@@ -340,7 +338,7 @@
         <div id="edit-panel-${ev.id}" class="hidden mt-3 space-y-3 bg-gray-50 border border-gray-100 rounded-xl p-4">
           <div>
             <label class="block text-xs font-medium text-gray-500 mb-1">Event Name</label>
-            <input type="text" id="edit-name-${ev.id}" value="${escapeQuotes(ev.name)}" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-red-800 focus:border-red-800 transition-all" />
+            <input type="text" id="edit-name-${ev.id}" value="${escapeHtml(ev.name)}" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-red-800 focus:border-red-800 transition-all" />
           </div>
           <div class="grid grid-cols-2 gap-3">
             <div>
@@ -385,7 +383,7 @@
           </div>
           <div>
             <label class="block text-xs font-medium text-gray-500 mb-1">Custom Question (optional)</label>
-            <textarea id="edit-question-${ev.id}" rows="2" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-red-800 focus:border-red-800 transition-all">${ev.custom_question || ''}</textarea>
+            <textarea id="edit-question-${ev.id}" rows="2" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-red-800 focus:border-red-800 transition-all">${escapeHtml(ev.custom_question || '')}</textarea>
           </div>
           <div class="flex gap-2">
             <button onclick="saveEventEdit('${ev.id}')" class="text-xs bg-red-800 hover:bg-red-900 text-white font-semibold px-4 py-2 rounded-lg transition-colors">Save Changes</button>
@@ -403,7 +401,7 @@
                 <span class="inline-flex items-center gap-1.5 text-xs font-semibold px-2 py-0.5 rounded-full ${statusConfig.badgeClass}">${statusConfig.icon}${category.charAt(0).toUpperCase() + category.slice(1)}</span>
                 ${overrideBadge}
               </div>
-              <p class="font-semibold text-gray-900">${ev.name}</p>
+              <p class="font-semibold text-gray-900">${escapeHtml(ev.name)}</p>
               <p class="text-xs text-gray-400 mt-0.5">${ev.event_date} · ${ev.event_type === 'open' ? 'Open Event' : 'Closed Event'}</p>
             </div>
           </div>
@@ -451,7 +449,7 @@
       currentAdminRole = roleRow.role;
       onRoleReady();
     }
-    requireAuth();
+    requireAuth(onRoleReady);
   </script>
   <script src="nameParser.js"></script>
   <script>
@@ -461,7 +459,6 @@
       document.getElementById("strict-timings-fields").classList.toggle("hidden", !this.checked);
     });
     const messageEl = document.getElementById("form-message");
-    const eventsListEl = document.getElementById("events-list");
 
    // Uses the browser's Geolocation API to auto-fill lat/long from the
     // device's current GPS position (works best on a phone, at the venue).
@@ -638,7 +635,15 @@
     }
 
     function escapeQuotes(str) {
-      return str.replace(/'/g, "\\'");
+      // Safely embeds a value inside a single-quoted JS string that itself
+      // sits inside a double-quoted HTML onclick="..." attribute. Order matters:
+      // backslashes first, then the JS-string quote, then the HTML-attribute quote/tags.
+      return String(str)
+        .replace(/\\/g, "\\\\")
+        .replace(/'/g, "\\'")
+        .replace(/"/g, "&quot;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
     }
 
     // Converts a stored UTC ISO timestamp into the local-time value format
@@ -757,7 +762,7 @@
       listEl.innerHTML = data.map(ev => `
         <div class="flex justify-between items-center border border-gray-100 rounded-lg p-3">
           <div class="min-w-0">
-            <p class="text-sm font-medium text-gray-800 truncate">${ev.name}</p>
+            <p class="text-sm font-medium text-gray-800 truncate">${escapeHtml(ev.name)}</p>
             <p class="text-xs text-gray-400">${ev.event_date} · ${ev.event_type === 'open' ? 'Open Event' : 'Closed Event'}</p>
           </div>
           <div class="flex gap-2 shrink-0 ml-3">
@@ -980,6 +985,7 @@
         .from("attendance_records")
         .select("*")
         .eq("event_id", eventId)
+        .is("deleted_at", null)
         .order("last_name");
 
       if (error) {
@@ -997,7 +1003,7 @@
         <ul class="max-h-56 overflow-y-auto space-y-1">
           ${data.map(r => `
             <li class="flex justify-between items-center gap-2 border-b border-gray-100 py-1">
-              <span id="roster-display-${r.id}" class="flex-1">${r.last_name}, ${r.first_name} ${r.middle_name || ''}</span>
+              <span id="roster-display-${r.id}" class="flex-1">${escapeHtml(r.last_name)}, ${escapeHtml(r.first_name)} ${escapeHtml(r.middle_name || '')}</span>
               <span class="${r.status === 'Present' ? 'text-green-700' : 'text-gray-400'} shrink-0">${r.status}</span>
               <button onclick="startEditRoster('${eventId}', '${r.id}', '${escapeQuotes(r.first_name)}', '${escapeQuotes(r.middle_name || '')}', '${escapeQuotes(r.last_name)}')"
                 class="text-red-800 underline shrink-0">Edit</button>
@@ -1031,19 +1037,22 @@
         .eq("id", recordId);
 
       if (error) {
-        alert("Error updating: " + error.message);
+        showToast("Error updating: " + error.message, "error");
         return;
       }
       loadRoster(eventId);
     }
 
     async function deleteRosterEntry(eventId, recordId) {
-      const confirmed = await showConfirmDialog("Remove this student from the roster entirely?");
+      const confirmed = await showConfirmDialog("Remove this student from the roster entirely? (This can be undone from the Archived Events / records history if needed.)");
       if (!confirmed) return;
 
-      const { error } = await supabaseClient.from("attendance_records").delete().eq("id", recordId);
+      const { error } = await supabaseClient
+        .from("attendance_records")
+        .update({ deleted_at: new Date().toISOString() })
+        .eq("id", recordId);
       if (error) {
-        showToast("Error deleting: " + error.message, "error");
+        showToast("Error removing student: " + error.message, "error");
         return;
       }
       showToast("Student removed from roster.");
@@ -1081,7 +1090,7 @@
             <span class="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
           </span>
           <div class="flex-1 min-w-0">
-            <p class="text-sm font-medium text-gray-800 truncate">${r.last_name}, ${r.first_name}</p>
+            <p class="text-sm font-medium text-gray-800 truncate">${escapeHtml(r.last_name)}, ${escapeHtml(r.first_name)}</p>
             <p class="text-xs text-gray-400 truncate">${r.events ? r.events.name : 'Unknown Event'} · ${r.status}</p>
           </div>
           <p class="text-xs text-gray-400 shrink-0">${timeAgo(r.created_at)}</p>
@@ -1155,7 +1164,7 @@
       resultsEl.innerHTML = data.map(r => `
         <div class="flex items-center justify-between px-4 py-3 border-b border-gray-50 last:border-0 hover:bg-gray-50">
           <div class="min-w-0">
-            <p class="text-sm font-medium text-gray-800 truncate">${r.last_name}, ${r.first_name} ${r.middle_name || ''}</p>
+            <p class="text-sm font-medium text-gray-800 truncate">${escapeHtml(r.last_name)}, ${escapeHtml(r.first_name)} ${escapeHtml(r.middle_name || '')}</p>
             <p class="text-xs text-gray-400 truncate">${[r.department, r.program].filter(Boolean).join(' / ') || '—'} · ${r.events ? r.events.name : 'Unknown Event'}</p>
           </div>
           <span class="text-xs font-semibold px-2 py-0.5 rounded-full shrink-0 ml-2 ${r.status === 'Present' ? 'bg-green-50 text-green-700' : r.status === 'Partial' ? 'bg-yellow-50 text-yellow-700' : 'bg-gray-100 text-gray-500'}">${r.status}</span>

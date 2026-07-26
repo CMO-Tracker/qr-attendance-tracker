@@ -25,8 +25,6 @@
 
   <div class="max-w-md mx-auto mt-10">
 
-  <div class="max-w-md mx-auto">
-
     <div id="loading-state" class="bg-white rounded-xl shadow-lg p-6 text-center border-4 border-yellow-500">
       <p class="text-gray-600">Loading event...</p>
     </div>
@@ -199,6 +197,7 @@
   </div>
 
   <script src="config.js"></script>
+  <script src="security.js"></script>
   <script src="departments.js"></script>
   <script src="nameParser.js"></script>
   <script>
@@ -926,7 +925,8 @@
 
       const reflectionCheck = validateReflectionField(document.getElementById("custom-question-input"));
       if (!reflectionCheck.ok) {
-        alert(reflectionCheck.reason);
+        messageEl.textContent = reflectionCheck.reason;
+        messageEl.className = "text-sm text-center mt-3 text-yellow-300";
         submitBtn.disabled = false;
         submitBtn.textContent = "Submit";
         return;
@@ -1016,7 +1016,7 @@
             <div class="text-center py-6">
               <p class="text-2xl mb-2">✅</p>
               <p class="text-lg font-semibold text-green-700">You're recorded for ${action === "checkin" ? "Check-In" : "Check-Out"}!</p>
-              <p class="text-sm text-gray-500 mt-1">${currentEvent.name}</p>
+              <p class="text-sm text-gray-500 mt-1">${escapeHtml(currentEvent.name)}</p>
               ${action === "checkin" ? `<p class="text-sm text-yellow-800 font-medium mt-3 bg-yellow-50 border border-yellow-200 rounded-lg p-2">${getCheckinReminderMessage()}</p>` : ''}
             </div>
           `;
@@ -1089,7 +1089,7 @@
       const resultsEl = document.getElementById("match-results");
       const questionHtml = currentEvent.custom_question ? `
         <div class="mt-3 text-left">
-          <label class="block text-sm font-medium text-gray-700 mb-1">${currentEvent.custom_question}</label>
+          <label class="block text-sm font-medium text-gray-700 mb-1">${escapeHtml(currentEvent.custom_question)}</label>
           <textarea id="closed-custom-response" rows="3" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"></textarea>
         </div>
       ` : '';
@@ -1107,7 +1107,8 @@
       document.getElementById("closed-confirm-btn").addEventListener("click", () => {
         const reflectionCheck = validateReflectionField(document.getElementById("closed-custom-response"));
         if (!reflectionCheck.ok) {
-          alert(reflectionCheck.reason);
+        messageEl.textContent = reflectionCheck.reason;
+        messageEl.className = "text-sm text-center mt-3 text-yellow-300";
           return;
         }
         verifyAndSignIn(record);
@@ -1158,7 +1159,7 @@
           <div class="text-center py-6">
             <p class="text-2xl mb-2">✅</p>
             <p class="text-lg font-semibold text-green-700">Welcome, ${record.first_name}!</p>
-            <p class="text-sm text-gray-500 mt-1">You're marked Present for ${currentEvent.name}</p>
+            <p class="text-sm text-gray-500 mt-1">You're marked Present for ${escapeHtml(currentEvent.name)}</p>
           </div>
         `;
       }
@@ -1187,7 +1188,8 @@
 
       const reflectionCheck = validateReflectionField(document.getElementById("one-touch-question-input"));
       if (!reflectionCheck.ok) {
-        alert(reflectionCheck.reason);
+        messageEl.textContent = reflectionCheck.reason;
+        messageEl.className = "text-sm text-center mt-3 text-yellow-300";
         btn.disabled = false;
         btn.textContent = "Confirm Check-Out";
         return;
@@ -1252,13 +1254,13 @@
             <div class="text-center py-6">
               <p class="text-2xl mb-2">✅</p>
               <p class="text-lg font-semibold text-green-700">You're recorded for Check-Out!</p>
-              <p class="text-sm text-gray-500 mt-1">${currentEvent.name}</p>
+              <p class="text-sm text-gray-500 mt-1">${escapeHtml(currentEvent.name)}</p>
             </div>
           `;
         }
       } catch (networkErr) {
-       queueOfflineSubmission({ eventId, action: "checkout", deviceId, record });
-        saveReceipt(currentEvent.name, "Check-Out");
+        queueOfflineSubmission({ eventId, action, deviceId, record });
+        saveReceipt(currentEvent.name, action === "checkin" ? "Check-In" : "Check-Out");
         showOfflineSavedMessage("checkout", oneTouchWrapper);
       }
     });

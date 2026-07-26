@@ -85,34 +85,10 @@
   </main>
 
   <script src="config.js"></script>
+  <script src="security.js"></script>
+  <script src="auth.js"></script>
   <script>
-    let currentAdminRole = null;
-
-    // Route protection: redirect to login if no active session OR no recognized role
-    async function requireAuth() {
-      const { data: { session } } = await supabaseClient.auth.getSession();
-      if (!session) {
-        window.location.href = "admin-login.html";
-        return;
-      }
-
-      const { data: roleRow, error } = await supabaseClient
-        .from("admin_roles")
-        .select("role")
-        .eq("id", session.user.id)
-        .single();
-
-      if (error || !roleRow) {
-        alert("Your account has no admin role assigned. Contact the coordinator.");
-        await supabaseClient.auth.signOut();
-        window.location.href = "admin-login.html";
-        return;
-      }
-
-      currentAdminRole = roleRow.role;
-      onRoleReady();
-    }
-    requireAuth();
+    requireAuth(onRoleReady);
   </script>
   <script>
     const params = new URLSearchParams(window.location.search);
@@ -262,7 +238,7 @@
 
       tbody.innerHTML = records.map(r => `
         <tr class="border-t border-gray-100" id="row-${r.id}">
-          <td class="px-3 py-2" id="cell-name-${r.id}">${r.last_name}, ${r.first_name} ${r.middle_name || ''}</td>
+          <td class="px-3 py-2" id="cell-name-${r.id}">${escapeHtml(r.last_name)}, ${escapeHtml(r.first_name)} ${escapeHtml(r.middle_name || '')}</td>
           <td class="px-3 py-2" id="cell-dept-${r.id}">${r.department || '—'}</td>
           <td class="px-3 py-2" id="cell-program-${r.id}">${r.program || '—'}</td>
           <td class="px-3 py-2" id="cell-yearsec-${r.id}">${[r.year_level, r.section].filter(Boolean).join(' / ') || '—'}</td>
@@ -273,7 +249,7 @@
             ${r.custom_response ? `
               <details>
                 <summary class="text-red-800 underline cursor-pointer text-xs">View</summary>
-                <p class="text-xs text-gray-700 mt-1 whitespace-pre-wrap">${r.custom_response}</p>
+                <p class="text-xs text-gray-700 mt-1 whitespace-pre-wrap">${escapeHtml(r.custom_response)}</p>
               </details>
             ` : '—'}
           </td>

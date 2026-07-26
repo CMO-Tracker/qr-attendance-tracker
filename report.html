@@ -88,9 +88,11 @@
   <script src="security.js"></script>
   <script src="auth.js"></script>
   <script>
-    requireAuth(onRoleReady);
-  </script>
-  <script>
+
+    requireAuth(async () => {
+      await init();
+    });
+    
     const params = new URLSearchParams(window.location.search);
     const eventId = params.get("event");
 
@@ -254,7 +256,7 @@
             ` : '—'}
           </td>
           <td class="px-3 py-2 whitespace-nowrap" id="cell-actions-${r.id}">
-            ${currentAdminRole === 'coordinator' ? `
+            ${window.currentAdminRole === 'coordinator' ? `
               <button onclick="startEditRow('${r.id}')" class="text-red-800 underline text-xs">Edit</button>
               <button onclick="deleteRecord('${r.id}')" class="text-red-600 underline text-xs ml-2">Delete</button>
             ` : `<span class="text-gray-300 text-xs">View only</span>`}
@@ -390,12 +392,6 @@
       URL.revokeObjectURL(url);
     }
 
-    function onRoleReady() {
-      // report.html content loads for both roles — just re-render once
-      // role is confirmed, so Edit/Delete buttons show/hide correctly
-      if (allRecords.length > 0) renderTable(allRecords);
-    }
-
     function showToast(message, type = "success") {
       const container = document.getElementById("toast-container");
       const toast = document.createElement("div");
@@ -434,7 +430,7 @@
       });
     }
     
-    init();
+    
   </script>
 
   <div id="toast-container" class="fixed bottom-4 right-4 z-[100] flex flex-col gap-2 pointer-events-none"></div>

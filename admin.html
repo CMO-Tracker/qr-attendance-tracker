@@ -1040,11 +1040,16 @@
     }
 
     function onRoleReady() {
-      isCoordinator = currentAdminRole === 'coordinator';
+      isCoordinator = window.currentAdminRole === "coordinator";
+
+      console.log("Role:", window.currentAdminRole);
+      console.log("isCoordinator:", isCoordinator);
+
       if (!isCoordinator) {
         document.getElementById("hub-create-card").classList.add("hidden");
       }
-     populateRecentActivity();
+
+      populateRecentActivity();
     }
 
     async function populateRecentActivity() {

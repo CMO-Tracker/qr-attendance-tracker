@@ -426,30 +426,10 @@
     }
 
     // Route protection: redirect to login if no active session OR no recognized role
-    async function requireAuth() {
-      const { data: { session } } = await supabaseClient.auth.getSession();
-      if (!session) {
-        window.location.href = "admin-login.html";
-        return;
-      }
-
-      const { data: roleRow, error } = await supabaseClient
-        .from("admin_roles")
-        .select("role")
-        .eq("id", session.user.id)
-        .single();
-
-      if (error || !roleRow) {
-        alert("Your account has no admin role assigned. Contact the coordinator.");
-        await supabaseClient.auth.signOut();
-        window.location.href = "admin-login.html";
-        return;
-      }
-
-      currentAdminRole = roleRow.role;
-      onRoleReady();
-    }
-    requireAuth(onRoleReady);
+    requireAuth(async () => {
+        currentAdminRole = window.currentAdminRole;
+        await onRoleReady();
+    });
   </script>
   <script src="nameParser.js"></script>
   <script>

@@ -106,9 +106,6 @@
   <script src="config.js"></script>
   <script src="security.js"></script>
    <script src="auth.js"></script>
-  <script>
-    requireAuth(loadInsights); // both roles can view insights — no gating needed here
-  </script>
   <script src="nameParser.js"></script>
   <script>
     let allData = [];
@@ -428,6 +425,10 @@
     // Restore a previously-saved webhook URL, if any
     const savedWebhook = localStorage.getItem("qr_attendance_sheets_webhook");
     if (savedWebhook) document.getElementById("sheets-webhook-url").value = savedWebhook;
+
+    requireAuth(async () => {
+      await loadInsights();
+    });
   </script>
 </body>
 </html>

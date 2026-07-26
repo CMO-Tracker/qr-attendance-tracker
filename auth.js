@@ -26,5 +26,12 @@ async function requireAuth(onReadyCallback) {
   }
 
   currentAdminRole = roleRow.role;
-  onReadyCallback();
+
+    // expose globally
+    window.currentAdminRole = currentAdminRole;
+    window.currentSession = session;
+
+  if (typeof onReadyCallback === "function") {
+    await onReadyCallback();
+  }
 }

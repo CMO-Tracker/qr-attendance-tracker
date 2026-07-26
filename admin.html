@@ -427,7 +427,6 @@
 
     // Route protection: redirect to login if no active session OR no recognized role
     requireAuth(async () => {
-        currentAdminRole = window.currentAdminRole;
         await onRoleReady();
     });
   </script>
@@ -1041,9 +1040,6 @@
 
     function onRoleReady() {
       isCoordinator = window.currentAdminRole === "coordinator";
-
-      console.log("Role:", window.currentAdminRole);
-      console.log("isCoordinator:", isCoordinator);
 
       if (!isCoordinator) {
         document.getElementById("hub-create-card").classList.add("hidden");

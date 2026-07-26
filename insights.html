@@ -295,7 +295,7 @@
       const students = {};
 
       filtered.forEach(r => {
-        const key = normalizeForMatch(r.first_name) + "|" + normalizeForMatch(r.last_name);
+        const key = r.student_id || (normalizeForMatch(r.first_name) + "|" + normalizeForMatch(r.last_name));
         if (!students[key]) {
           students[key] = {
             firstName: r.first_name, lastName: r.last_name, middleName: r.middle_name,
@@ -355,7 +355,7 @@
       const students = {};
 
       filtered.forEach(r => {
-        const key = normalizeForMatch(r.first_name) + "|" + normalizeForMatch(r.last_name);
+        const key = r.student_id || (normalizeForMatch(r.first_name) + "|" + normalizeForMatch(r.last_name));
         if (!students[key]) {
           students[key] = {
             firstName: r.first_name, lastName: r.last_name, middleName: r.middle_name,

@@ -138,6 +138,33 @@
       </button>
     </div>
 
+    <!-- RETURNING STUDENT SHORTCUT -->
+    <div id="returning-student-wrapper" class="hidden bg-white rounded-2xl shadow-2xl p-6 pt-5 relative overflow-hidden">
+      <div class="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-yellow-400 via-yellow-500 to-yellow-600"></div>
+      <div class="flex justify-center mb-4">
+        <img src="logo.png" alt="School Logo" class="h-16 w-16 object-contain" />
+      </div>
+      <h1 id="returning-event-title" class="text-xl font-bold text-gray-900 text-center mb-1"></h1>
+      <p class="text-sm font-semibold text-red-800 uppercase text-center tracking-wide mb-4">Check-In</p>
+
+      <div class="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-4 text-center">
+        <p class="text-lg font-semibold text-gray-800" id="returning-student-name"></p>
+        <p class="text-sm text-gray-500 mt-1" id="returning-student-details"></p>
+      </div>
+
+      <div id="returning-custom-question-wrapper" class="hidden mb-4 text-left">
+        <label class="block text-sm font-medium text-gray-700 mb-1" id="returning-custom-question-label"></label>
+        <textarea id="returning-custom-question-input" rows="3" class="w-full border border-gray-200 rounded-lg px-3 py-2.5 focus:ring-2 focus:ring-red-800 focus:outline-none transition-all"></textarea>
+      </div>
+
+      <button id="returning-confirm-btn" class="w-full bg-red-800 hover:bg-red-900 text-white font-semibold py-2.5 rounded-lg transition-colors">
+        [ Confirm Attendance ]
+      </button>
+      <button type="button" onclick="showManualCheckinForm()" class="w-full text-xs text-gray-500 underline mt-3">
+        Not you, or info outdated? Enter manually
+      </button>
+    </div>
+
 
     <!-- CLOSED EVENT FORM -->
     <div id="closed-form-wrapper" class="hidden bg-white rounded-2xl shadow-2xl p-6 pt-5 relative overflow-hidden">
@@ -235,6 +262,8 @@
         }
 
         oneTouchWrapper.classList.remove("hidden");
+      } else if (action === "checkin" && await tryShowReturningStudentShortcut()) {
+        // returning-student card already displayed
       } else {
         document.getElementById("event-title").textContent = currentEvent.name;
         document.getElementById("action-label").textContent = action === "checkin" ? "Check-In" : "Check-Out";
@@ -380,14 +409,40 @@
     // Builds the checkout reminder text for a successful Check-In, based on
     // whichever timing mode the event uses.
     function getCheckinReminderMessage() {
+      const today = new Date();
+
+     // Smart internal helper to conditionally append the date if it's not today
+      const formatDateTime = (dateSource) => {
+        const targetDate = new Date(dateSource);
+    
+        // Check if target date is the same calendar day as today
+        const isSameDay = targetDate.getDate() === today.getDate() &&
+                          targetDate.getMonth() === today.getMonth() &&
+                          targetDate.getFullYear() === today.getFullYear();
+
+        const timeString = targetDate.toLocaleString([], { hour: '2-digit', minute: '2-digit' });
+
+        if (isSameDay) {
+          return timeString; // Returns just "01:09 PM" if it happens today
+        } else {
+          const dateString = targetDate.toLocaleString([], { month: 'short', day: 'numeric', year: 'numeric' });
+          return `${timeString} on ${dateString}`; // Returns "01:09 PM on Jul 27, 2026" for multi-day events
+        }
+      };
+
+      // Branch 1: Strict Timings Flow
       if (currentEvent.use_strict_timings && currentEvent.checkout_start && currentEvent.checkout_end) {
-        const start = new Date(currentEvent.checkout_start).toLocaleString([], { hour: '2-digit', minute: '2-digit' });
-        const end = new Date(currentEvent.checkout_end).toLocaleString([], { hour: '2-digit', minute: '2-digit' });
+        const start = formatDateTime(currentEvent.checkout_start);
+        const end = formatDateTime(currentEvent.checkout_end);
         return `Please remember to scan the Check-Out QR code between ${start} and ${end} to be marked present.`;
-      } else if (currentEvent.end_time) {
-        const end = new Date(currentEvent.end_time).toLocaleString([], { hour: '2-digit', minute: '2-digit' });
+      } 
+  
+      // Branch 2: Standard End Time Flow
+      else if (currentEvent.end_time) {
+        const end = formatDateTime(currentEvent.end_time);
         return `Remember to check out before the event ends at ${end}.`;
       }
+
       return "";
     }
 
@@ -550,6 +605,13 @@
             ({ error } = await supabaseClient.from("attendance_records").insert(entry.record));
           }
         } else {
+          if (entry.action === 'checkin' && !entry.record.student_id) {
+            const studentId = await findOrCreateStudentId(entry.record);
+            if (studentId) {
+              entry.record.student_id = studentId;
+              localStorage.setItem('csa_student_shortcut_id', studentId);
+            }
+          }
           ({ error } = await supabaseClient.from("attendance_records").insert(entry.record));
         }
         if (error) {
@@ -614,6 +676,119 @@
         return null;
       }
     }
+
+    let returningStudentProfile = null;
+
+    function showManualCheckinForm() {
+      document.getElementById('returning-student-wrapper').classList.add('hidden');
+      populateDepartments();
+      if (currentEvent.custom_question) {
+        document.getElementById('custom-question-label').textContent = currentEvent.custom_question;
+        document.getElementById('custom-question-wrapper').classList.remove('hidden');
+        document.getElementById('custom-question-input').required = true;
+      }
+      formWrapper.classList.remove('hidden');
+    }
+
+    // Returns true (and shows the shortcut card) if a cached profile was found and loaded
+    async function tryShowReturningStudentShortcut() {
+      const shortcutId = localStorage.getItem('csa_student_shortcut_id');
+      if (!shortcutId) return false;
+
+      const { data: profile, error } = await supabaseClient
+        .from('students')
+        .select('*')
+        .eq('id', shortcutId)
+        .maybeSingle();
+
+      if (error || !profile) return false;
+
+      returningStudentProfile = profile;
+      document.getElementById('returning-event-title').textContent = currentEvent.name;
+      document.getElementById('returning-student-name').textContent =
+        `${profile.first_name} ${profile.middle_name || ''} ${profile.last_name}`.replace(/\s+/g, ' ').trim();
+      document.getElementById('returning-student-details').textContent =
+        [profile.department, profile.program, profile.year_level, profile.section].filter(Boolean).join(' · ');
+
+      if (currentEvent.custom_question) {
+        document.getElementById('returning-custom-question-label').textContent = currentEvent.custom_question;
+        document.getElementById('returning-custom-question-wrapper').classList.remove('hidden');
+        document.getElementById('returning-custom-question-input').required = true;
+      }
+
+      document.getElementById('returning-student-wrapper').classList.remove('hidden');
+      return true;
+    }
+
+    // Looks up an existing students row by name (via your existing normalizeForMatch,
+    // same logic already used for closed-event roster matching), or creates one.
+    async function findOrCreateStudentId(record) {
+      try {
+        const { data: candidates, error: searchError } = await supabaseClient
+          .from('students')
+          .select('id, middle_name')
+          .ilike('first_name', record.first_name)
+          .ilike('last_name', record.last_name);
+
+        if (!searchError && candidates) {
+          const match = candidates.find(c =>
+            normalizeForMatch(c.middle_name || '') === normalizeForMatch(record.middle_name || '')
+          );
+          if (match) return match.id;
+        }
+
+        const { data: created, error: insertError } = await supabaseClient
+          .from('students')
+          .insert({
+            first_name: record.first_name,
+            middle_name: record.middle_name || null,
+            last_name: record.last_name,
+            department: record.department,
+            program: record.program,
+            year_level: record.year_level,
+            section: record.section
+          })
+          .select('id')
+          .single();
+
+        if (insertError) { console.error('Student profile save failed:', insertError.message); return null; }
+        return created.id;
+      } catch (err) {
+        console.error('Student profile step failed:', err.message);
+        return null;
+      }
+    }
+
+    document.getElementById('returning-confirm-btn').addEventListener('click', () => {
+      if (!returningStudentProfile) return;
+
+      // Pre-fill the REAL form fields, then submit through the existing,
+      // already-validated pipeline -- geofence, schedule, reflection validation,
+      // device lock, and offline queue all run exactly as they do for manual entry.
+      document.getElementById('first-name').value = returningStudentProfile.first_name;
+      document.getElementById('middle-name').value = returningStudentProfile.middle_name || '';
+      document.getElementById('last-name').value = returningStudentProfile.last_name;
+      document.getElementById('section').value = returningStudentProfile.section;
+
+      populateDepartments();
+      const deptSelect = document.getElementById('department');
+      deptSelect.value = returningStudentProfile.department;
+      deptSelect.dispatchEvent(new Event('change')); // populates program options + BED year-level toggle
+      document.getElementById('program').value = returningStudentProfile.program;
+      document.getElementById('year-level').value = returningStudentProfile.year_level;
+
+      if (currentEvent.custom_question) {
+        document.getElementById('custom-question-wrapper').classList.remove('hidden');
+        document.getElementById('custom-question-input').required = true;
+        document.getElementById('custom-question-input').value =
+          document.getElementById('returning-custom-question-input').value;
+      }
+
+      document.getElementById('returning-student-wrapper').classList.add('hidden');
+      formWrapper.classList.remove('hidden');
+
+      document.getElementById('signin-form').requestSubmit();
+    });
 
     // Open events only get full "Present" credit once BOTH check-in and
     // check-out exist. Anything less is "Partial" — this fixes the bug
@@ -774,6 +949,11 @@
         record.custom_response = document.getElementById("custom-question-input").value.trim();
       }
 
+      if (action === "checkin" && navigator.onLine) {
+        const studentId = await findOrCreateStudentId(record);
+        if (studentId) record.student_id = studentId;
+      }
+
       if (action === "checkin") record.check_in_time = new Date().toISOString();
       else if (action === "checkout") record.check_out_time = new Date().toISOString();
 
@@ -828,7 +1008,10 @@
           submitBtn.textContent = "Submit";
         } else {
           saveReceipt(currentEvent.name, action === "checkin" ? "Check-In" : "Check-Out");
-          if (action === "checkin") saveSessionForEvent(eventId, record);
+          if (action === "checkin") {
+            saveSessionForEvent(eventId, record);
+            if (record.student_id) localStorage.setItem('csa_student_shortcut_id', record.student_id);
+          } 
           formWrapper.innerHTML = `
             <div class="text-center py-6">
               <p class="text-2xl mb-2">✅</p>

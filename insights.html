@@ -25,6 +25,16 @@
       <!-- Filters -->
       <div class="bg-white rounded-xl shadow p-4 border border-gray-200 mb-6 flex flex-wrap gap-3 items-end">
         <div>
+          <label class="block text-xs font-medium text-gray-600 mb-1">Date Range</label>
+          <select id="filter-daterange" onchange="loadInsights()" class="border border-gray-300 rounded-lg px-3 py-1.5 text-sm">
+            <option value="">All Time</option>
+            <option value="30">Last 30 Days</option>
+            <option value="90">Last 3 Months</option>
+            <option value="180">Last 6 Months</option>
+            <option value="365">Last 12 Months</option>
+          </select>
+        </div>
+        <div>
           <label class="block text-xs font-medium text-gray-600 mb-1">Department</label>
           <select id="filter-dept" class="border border-gray-300 rounded-lg px-3 py-1.5 text-sm"><option value="">All</option></select>
         </div>
@@ -112,18 +122,29 @@
     let rateChart = null;
 
     async function loadInsights() {
-      // Embeds the related event's name/date/type via the event_id foreign key
-      const { data, error } = await supabaseClient
+      const rangeDays = document.getElementById("filter-daterange")?.value;
+
+      // !inner forces the date filter to actually restrict rows (rather than
+      // just shaping the response), and conveniently also drops any orphaned
+      // record with no matching event -- replacing the old client-side filter for that.
+      let query = supabaseClient
         .from("attendance_records")
-        .select("*, events(name, event_date, event_type)")
+        .select("*, events!inner(name, event_date, event_type)")
         .is("deleted_at", null);
+
+      if (rangeDays) {
+        const sinceDate = new Date(Date.now() - Number(rangeDays) * 24 * 60 * 60 * 1000);
+        query = query.gte("events.event_date", sinceDate.toISOString().slice(0, 10));
+      }
+
+      const { data, error } = await query;
 
       if (error) {
         document.getElementById("loading").textContent = "Error loading data: " + error.message;
         return;
       }
 
-      allData = data.filter(r => r.events); // drop any orphaned records with no matching event
+      allData = data;
       populateFilters();
       renderAll();
 

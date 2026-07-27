@@ -413,11 +413,16 @@
     // need "await" -- see the updated deleteEvent()/deleteRosterEntry() below.
     function showConfirmDialog(message) {
       return new Promise((resolve) => {
+        const previouslyFocused = document.activeElement;
         const overlay = document.createElement("div");
-        overlay.className = "fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-[110] p-4";
+        overlay.id = "confirm-dialog-overlay";
+        overlay.className = "fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-[130] p-4";
+        overlay.setAttribute("role", "alertdialog");
+        overlay.setAttribute("aria-modal", "true");
+        overlay.setAttribute("aria-labelledby", "confirm-dialog-message");
         overlay.innerHTML = `
           <div class="bg-white rounded-xl shadow-2xl max-w-sm w-full p-5">
-            <p class="text-sm text-gray-700 mb-4 whitespace-pre-line">${message}</p>
+            <p id="confirm-dialog-message" class="text-sm text-gray-700 mb-4 whitespace-pre-line">${message}</p>
             <div class="flex justify-end gap-2">
               <button id="confirm-cancel" class="text-xs font-medium px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50">Cancel</button>
               <button id="confirm-ok" class="text-xs font-semibold px-3 py-1.5 rounded-lg bg-red-800 hover:bg-red-900 text-white">Confirm</button>
@@ -425,14 +430,24 @@
           </div>
         `;
         document.body.appendChild(overlay);
-        overlay.querySelector("#confirm-cancel").onclick = () => { overlay.remove(); resolve(false); };
-        overlay.querySelector("#confirm-ok").onclick = () => { overlay.remove(); resolve(true); };
+
+        const close = (result) => {
+          overlay.remove();
+          document.removeEventListener("keydown", onKeydown);
+          if (previouslyFocused) previouslyFocused.focus();
+          resolve(result);
+        };
+        const onKeydown = (e) => { if (e.key === "Escape") close(false); };
+
+        document.addEventListener("keydown", onKeydown);
+        overlay.querySelector("#confirm-cancel").onclick = () => close(false);
+        overlay.querySelector("#confirm-ok").onclick = () => close(true);
+        overlay.querySelector("#confirm-cancel").focus();
       });
     }
     
     
   </script>
 
-  <div id="toast-container" class="fixed bottom-4 right-4 z-[100] flex flex-col gap-2 pointer-events-none"></div>
-</body>
+  <div id="toast-container" role="status" aria-live="polite" aria-atomic="true" class="fixed bottom-4 right-4 z-[100] flex flex-col gap-2 pointer-events-none"></div>
 </html>

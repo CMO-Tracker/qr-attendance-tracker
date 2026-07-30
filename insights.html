@@ -120,26 +120,19 @@
   <script>
     let allData = [];
     let rateChart = null;
+    let filtersInitialized = false;
 
     async function loadInsights() {
       const rangeDays = document.getElementById("filter-daterange")?.value;
 
-      // !inner forces the date filter to actually restrict rows (rather than
-      // just shaping the response), and conveniently also drops any orphaned
-      // record with no matching event -- replacing the old client-side filter for that.
-      let query = supabaseClient
-        .from("attendance_records")
-        .select("*, events!inner(name, event_date, event_type)")
-        .is("deleted_at", null);
+      document.getElementById("loading").textContent = "Loading historical data...";
+      document.getElementById("loading").classList.remove("hidden");
+      document.getElementById("content").classList.add("hidden");
 
-      if (rangeDays) {
-        const sinceDate = new Date(Date.now() - Number(rangeDays) * 24 * 60 * 60 * 1000);
-        query = query.gte("events.event_date", sinceDate.toISOString().slice(0, 10));
-      }
-
-      const { data, error } = await query;
-
-      if (error) {
+      let data;
+      try {
+        data = await fetchAllAttendanceRecords(rangeDays);
+      } catch (error) {
         document.getElementById("loading").textContent = "Error loading data: " + error.message;
         return;
       }
@@ -151,15 +144,52 @@
       document.getElementById("loading").classList.add("hidden");
       document.getElementById("content").classList.remove("hidden");
 
-      ["filter-dept", "filter-program", "filter-year", "filter-section"].forEach(id => {
-        document.getElementById(id).addEventListener("change", renderAll);
-      });
+      if (!filtersInitialized) {
+        ["filter-dept", "filter-program", "filter-year", "filter-section"].forEach(id => {
+          document.getElementById(id).addEventListener("change", renderAll);
+        });
+        filtersInitialized = true;
+      }
+    }
+
+    // Fetches every attendance record matching the optional date-range filter,
+    // paging past Supabase's 1,000-row cap. .order("id") gives a stable,
+    // deterministic sort so pagination can't skip or duplicate a row.
+    async function fetchAllAttendanceRecords(rangeDays) {
+      const records = [];
+      const pageSize = 1000;
+      let from = 0;
+
+      while (true) {
+        const to = from + pageSize - 1;
+        let query = supabaseClient
+          .from("attendance_records")
+          .select("*, events!inner(name, event_date, event_type)")
+          .is("deleted_at", null)
+          .order("id")
+          .range(from, to);
+
+        if (rangeDays) {
+          const sinceDate = new Date(Date.now() - Number(rangeDays) * 24 * 60 * 60 * 1000);
+          query = query.gte("events.event_date", sinceDate.toISOString().slice(0, 10));
+        }
+
+        const { data, error } = await query;
+        if (error) throw error;
+
+        if (data && data.length > 0) records.push(...data);
+        if (!data || data.length < pageSize) break;
+        from += pageSize;
+      }
+
+      return records;
     }
 
     function populateFilters() {
       const fill = (id, key) => {
         const values = [...new Set(allData.map(r => r[key]).filter(Boolean))].sort();
         const select = document.getElementById(id);
+        select.innerHTML = '<option value="">All</option>'; // reset before repopulating, so re-running this doesn't duplicate options
         values.forEach(v => {
           const opt = document.createElement("option");
           opt.value = v; opt.textContent = v;

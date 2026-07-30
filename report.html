@@ -114,15 +114,12 @@
       }
       currentEvent = eventData;
 
-      const { data: records, error: recordsError } = await supabaseClient
-        .from("attendance_records").select("*").eq("event_id", eventId)
-        .order("last_name");
-
-      if (recordsError) {
+      try {
+        allRecords = await fetchAllRecordsForEvent(eventId);
+      } catch (recordsError) {
         document.getElementById("loading").textContent = "Error loading records: " + recordsError.message;
         return;
       }
-      allRecords = records;
 
       document.getElementById("event-name").textContent = currentEvent.name;
       document.getElementById("event-meta").textContent =
@@ -173,6 +170,37 @@
             badge.className = "text-xs font-semibold px-2 py-1 rounded-full bg-yellow-100 text-yellow-700";
           }
         });
+    }
+
+    // Fetches every attendance record for one event, paging past Supabase's
+    // 1,000-row-per-request cap. .order("last_name").order("id") gives a
+    // fully deterministic sort (id breaks ties between same-last-name
+    // students), which is required for .range()-based paging to never
+    // skip or duplicate a row across page boundaries.
+    async function fetchAllRecordsForEvent(evId) {
+      const records = [];
+      const pageSize = 1000;
+      let from = 0;
+
+      while (true) {
+        const to = from + pageSize - 1;
+        const { data, error } = await supabaseClient
+          .from("attendance_records")
+          .select("*")
+          .eq("event_id", evId)
+          .is("deleted_at", null)
+          .order("last_name")
+          .order("id")
+          .range(from, to);
+
+        if (error) throw error;
+
+        if (data && data.length > 0) records.push(...data);
+        if (!data || data.length < pageSize) break;
+        from += pageSize;
+      }
+
+      return records;
     }
 
     function renderStats() {
@@ -339,15 +367,13 @@
 
     // Re-fetches records from Supabase and re-renders everything that depends on them
     async function refreshRecords() {
-      const { data, error } = await supabaseClient
-        .from("attendance_records").select("*").eq("event_id", eventId)
-        .is("deleted_at", null)
-        .order("last_name");
-
-      if (error) return;
-      allRecords = data;
-      renderStats();
-      applyFilters(); // re-runs the table render through whatever search/status/dept filters are active
+      try {
+        allRecords = await fetchAllRecordsForEvent(eventId);
+        renderStats();
+        applyFilters(); // re-runs the table render through whatever search/status/dept filters are active
+      } catch (error) {
+        showToast("Error refreshing records: " + error.message, "error");
+      }
     }
 
     function formatTime(isoString) {

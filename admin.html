@@ -34,7 +34,7 @@
 
       <div class="relative z-10">
         <div class="text-center mb-10">
-          <h1 class="text-3xl font-bold text-gray-900 tracking-tight mb-1">Welcome, Coordinator</h1>
+           <h1 id="hub-greeting" class="text-3xl font-bold text-gray-900 tracking-tight mb-1">Welcome, Coordinator</h1>
           <p class="text-gray-400 text-sm">What would you like to do today?</p>
         </div>
 
@@ -95,12 +95,20 @@
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">Event Name</label>
             <input type="text" id="event-name" required
-              class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-red-800 focus:outline-none
+              class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-red-800 focus:outline-none" />
           </div>
+
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Office</label>
+            <div id="event-office-locked" class="hidden w-full border border-gray-200 bg-gray-50 rounded-lg px-3 py-2 text-sm text-gray-600"></div>
+            <select id="event-office" class="hidden w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-red-800 focus:outline-none">
+            </select>
+          </div>
+
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">Event Type</label>
             <select id="event-type" required
-              class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-red-800 focus:outline-none
+              class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-red-800 focus:outline-none">
               <option value="">-- Select --</option>
               <option value="open">Open (e.g. Mass — separate Check-In / Check-Out)</option>
               <option value="closed">Closed (e.g. Retreat — pre-loaded roster)</option>
@@ -109,7 +117,8 @@
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">Event Date</label>
             <input type="date" id="event-date" required
-              class="w-full border border-gray-300 rounded-lg px-3 py-2 ffocus:ring-2 focus:ring-red-800 focus:outline-none
+              class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-red-800 focus:outline-none" />
+          </div>
 
           <div class="grid grid-cols-2 gap-3">
             <div>
@@ -206,6 +215,8 @@
       <button onclick="showView('hub')" class="text-red-800 text-sm underline mb-4 inline-block">← Back to Dashboard</button>
       <h2 class="text-2xl font-bold text-gray-900 mb-4">Manage Tracked Events</h2>
 
+      <div id="office-tabs" class="flex gap-2 flex-wrap mb-4"></div>
+
       <div class="mb-6">
         <input type="text" id="manager-search" placeholder="Search events by name..."
           oninput="currentSearchTerm = this.value; applyManagerFilters();"
@@ -238,8 +249,8 @@
   <script src="security.js"></script>
   <script src="auth.js"></script>
   <script>
-    let isCoordinator = false;
     let allEventsData = [];
+    let selectedOfficeId = null; // null = "All Offices" (Super Admin only)
 
     function showView(view) {
       document.getElementById('dashboard-hub').classList.add('hidden');
@@ -252,8 +263,22 @@
         document.getElementById('event-creator-view').classList.remove('hidden');
       } else if (view === 'manager') {
         document.getElementById('event-manager-view').classList.remove('hidden');
+        renderOfficeTabs();
         loadEvents();
       }
+    }
+
+    function updateGreeting() {
+      const heading = document.getElementById("hub-greeting");
+      if (!heading) return;
+
+      if (window.isSuperAdmin) {
+        heading.textContent = "Welcome, Coordinator";
+        return;
+      }
+
+      const myOffice = allOffices.find(o => o.id === window.currentOfficeId);
+      heading.textContent = myOffice ? `Welcome, ${myOffice.code} Coordinator` : "Welcome, Coordinator";
     }
 
     // Manual overrides take absolute priority over the scheduled clock.
@@ -270,6 +295,31 @@
       if (start && now < start) return 'upcoming';
       if (end && now > end) return 'completed';
       return 'ongoing'; // currently within window, or no schedule set at all
+    }
+
+    function renderOfficeTabs() {
+      const el = document.getElementById("office-tabs");
+
+      if (!window.isSuperAdmin) {
+        const myOffice = allOffices.find(o => o.id === window.currentOfficeId);
+        el.innerHTML = `<span class="text-sm font-semibold text-gray-700">🏢 ${escapeHtml(myOffice ? myOffice.name : "Your Office")}</span>`;
+        return;
+      }
+
+      const tabClass = (active) => active
+        ? "text-xs font-semibold px-3 py-1.5 rounded-full bg-red-800 text-white"
+        : "text-xs font-semibold px-3 py-1.5 rounded-full bg-gray-100 text-gray-600 hover:bg-gray-200";
+
+      el.innerHTML = `
+        <button onclick="switchOffice(null)" class="${tabClass(selectedOfficeId === null)}">All Offices</button>
+        ${allOffices.map(o => `<button onclick="switchOffice('${o.id}')" class="${tabClass(selectedOfficeId === o.id)}">${escapeHtml(o.name)}</button>`).join("")}
+      `;
+    }
+
+    function switchOffice(officeId) {
+      selectedOfficeId = officeId;
+      renderOfficeTabs();
+      loadEvents();
     }
 
     function buildEventCardHTML(ev, category) {
@@ -292,20 +342,18 @@
       const redBtn = "text-xs font-medium px-3 py-1.5 rounded-lg border border-red-200 text-red-700 hover:bg-red-50 transition-colors";
 
       let overrideButtons = '';
-      if (isCoordinator) {
-        if (category === 'ongoing') {
-          overrideButtons = `<button onclick="setOverride('${ev.id}', 'force_closed')" class="${redBtn}">Force Close Now</button>`;
-        } else if (category === 'upcoming') {
-          overrideButtons = `<button onclick="setOverride('${ev.id}', 'force_open')" class="${greenBtn}">Force Open Now</button>`;
-        } else if (category === 'completed') {
-          overrideButtons = `<button onclick="setOverride('${ev.id}', 'force_open')" class="${greenBtn}">Force Reopen</button>`;
-        }
-        if (ev.status_override) {
-          overrideButtons += ` <button onclick="setOverride('${ev.id}', null)" class="${secondaryBtn}">Clear Override</button>`;
-        }
+      if (category === 'ongoing') {
+        overrideButtons = `<button onclick="setOverride('${ev.id}', 'force_closed')" class="${redBtn}">Force Close Now</button>`;
+      } else if (category === 'upcoming') {
+        overrideButtons = `<button onclick="setOverride('${ev.id}', 'force_open')" class="${greenBtn}">Force Open Now</button>`;
+      } else if (category === 'completed') {
+        overrideButtons = `<button onclick="setOverride('${ev.id}', 'force_open')" class="${greenBtn}">Force Reopen</button>`;
+      }
+      if (ev.status_override) {
+        overrideButtons += ` <button onclick="setOverride('${ev.id}', null)" class="${secondaryBtn}">Clear Override</button>`;
       }
 
-      const qrSection = (category === 'completed' || !isCoordinator) ? '' : `
+      const qrSection = category === 'completed' ? '' : `
         <div class="flex gap-2 flex-wrap mt-3 pt-3 border-t border-gray-50">
           ${ev.event_type === 'open' ? `
             <button onclick="generateQR('${ev.id}', 'checkin', '${escapeQuotes(ev.name)}')" class="${goldBtn}">Generate Check-In QR</button>
@@ -317,7 +365,7 @@
         <div id="qr-container-${ev.id}" class="flex gap-4 flex-wrap mt-3"></div>
       `;
 
-      const rosterSection = (ev.event_type === 'closed' && isCoordinator) ? `
+      const rosterSection = ev.event_type === 'closed' ? `
         <div class="mt-3 pt-3 border-t border-gray-50">
           <button onclick="toggleRoster('${ev.id}')" class="${secondaryBtn}">Manage Roster</button>
           <div id="roster-panel-${ev.id}" class="hidden mt-3 space-y-2">
@@ -334,7 +382,7 @@
         </div>
       ` : '';
 
-      const editPanel = isCoordinator ? `
+      const editPanel = `
         <div id="edit-panel-${ev.id}" class="hidden mt-3 space-y-3 bg-gray-50 border border-gray-100 rounded-xl p-4">
           <div>
             <label class="block text-xs font-medium text-gray-500 mb-1">Event Name</label>
@@ -391,7 +439,7 @@
           </div>
           <p id="edit-message-${ev.id}" class="text-xs"></p>
         </div>
-      ` : '';
+      `;
 
       return `
         <div class="border border-gray-100 rounded-xl shadow-sm hover:shadow-md transition-all duration-200 p-5 mb-4 bg-white ${category === 'completed' ? 'opacity-70' : ''}">
@@ -402,7 +450,7 @@
                 ${overrideBadge}
               </div>
               <p class="font-semibold text-gray-900">${escapeHtml(ev.name)}</p>
-              <p class="text-xs text-gray-400 mt-0.5">${ev.event_date} · ${ev.event_type === 'open' ? 'Open Event' : 'Closed Event'}</p>
+              <p class="text-xs text-gray-500 mt-0.5">${ev.event_date} · ${ev.event_type === 'open' ? 'Open Event' : 'Closed Event'}${window.isSuperAdmin && ev.offices ? ` · 🏢 ${escapeHtml(ev.offices.name)}` : ''}</p>
             </div>
           </div>
 
@@ -413,17 +461,16 @@
           ${qrSection}
           ${rosterSection}
 
-          ${isCoordinator ? `
-            <div class="mt-3 pt-3 border-t border-gray-50 flex gap-2 flex-wrap items-center">
-              <button onclick="toggleEditEvent('${ev.id}')" class="${secondaryBtn}">Edit Event</button>
-              <button onclick="deleteEvent('${ev.id}', '${escapeQuotes(ev.name)}')" class="${dangerBtn}">Delete Event</button>
-              ${overrideButtons}
-            </div>
-            ${editPanel}
-          ` : ''}
+          <div class="mt-3 pt-3 border-t border-gray-50 flex gap-2 flex-wrap items-center">
+            <button onclick="toggleEditEvent('${ev.id}')" class="${secondaryBtn}">Edit Event</button>
+            <button onclick="deleteEvent('${ev.id}', '${escapeQuotes(ev.name)}')" class="${dangerBtn}">Delete Event</button>
+            ${overrideButtons}
+          </div>
+          ${editPanel}
         </div>
       `;
     }
+      
 
     // Route protection: redirect to login if no active session OR no recognized role
     requireAuth(async () => {
@@ -433,6 +480,25 @@
   <script src="nameParser.js"></script>
   <script>
     const form = document.getElementById("event-form");
+
+    let allOffices = [];
+
+    async function setupOfficeField() {
+      const { data } = await supabaseClient.from("offices").select("*").eq("active", true).order("name");
+      allOffices = data || [];
+
+      const lockedEl = document.getElementById("event-office-locked");
+      const selectEl = document.getElementById("event-office");
+
+      if (window.isSuperAdmin) {
+        selectEl.innerHTML = allOffices.map(o => `<option value="${o.id}">${escapeHtml(o.name)}</option>`).join("");
+        selectEl.classList.remove("hidden");
+      } else {
+        const myOffice = allOffices.find(o => o.id === window.currentOfficeId);
+        lockedEl.textContent = myOffice ? myOffice.name : "Your office";
+        lockedEl.classList.remove("hidden");
+      }
+    }
 
     document.getElementById("event-strict-timings").addEventListener("change", function () {
       document.getElementById("strict-timings-fields").classList.toggle("hidden", !this.checked);
@@ -488,10 +554,15 @@
       const checkoutStart = document.getElementById("checkout-start").value;
       const checkoutEnd = document.getElementById("checkout-end").value;
 
+      const officeId = window.isSuperAdmin
+        ? document.getElementById("event-office").value
+        : window.currentOfficeId;
+
       const { error } = await supabaseClient
         .from("events")
         .insert({
           name,
+          office_id: officeId,
           event_type: eventType,
           event_date: eventDate,
           start_time: new Date(startTime).toISOString(),
@@ -527,11 +598,19 @@
       document.getElementById("upcoming-events").innerHTML = skeletonCards(2);
       document.getElementById("completed-events").innerHTML = skeletonCards(2);
 
-      const { data, error } = await supabaseClient
+      let query = supabaseClient
         .from("events")
-        .select("*")
+        .select("*, offices(name)")
         .is("deleted_at", null)
         .order("event_date", { ascending: false });
+
+      if (window.isSuperAdmin && selectedOfficeId) {
+        query = query.eq("office_id", selectedOfficeId);
+      }
+      // For a normal Coordinator, RLS itself already returns only their
+      // office's events -- no explicit filter needed here at all.
+
+      const { data, error } = await query;
 
       if (error) {
         document.getElementById("ongoing-events").innerHTML = `<p class="text-red-600 text-sm">Error loading events: ${error.message}</p>`;
@@ -1047,13 +1126,9 @@
       loadRoster(eventId);
     }
 
-    function onRoleReady() {
-      isCoordinator = window.currentAdminRole === "coordinator";
-
-      if (!isCoordinator) {
-        document.getElementById("hub-create-card").classList.add("hidden");
-      }
-
+    async function onRoleReady() {
+      await setupOfficeField();
+      updateGreeting();
       populateRecentActivity();
     }
 

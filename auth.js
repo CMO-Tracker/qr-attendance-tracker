@@ -14,7 +14,7 @@ async function requireAuth(onReadyCallback) {
 
   const { data: roleRow, error } = await supabaseClient
     .from("admin_roles")
-    .select("role")
+    .select("role, office_id")
     .eq("id", session.user.id)
     .single();
 
@@ -26,10 +26,10 @@ async function requireAuth(onReadyCallback) {
   }
 
   currentAdminRole = roleRow.role;
-
-    // expose globally
-    window.currentAdminRole = currentAdminRole;
-    window.currentSession = session;
+  window.currentAdminRole = currentAdminRole;
+  window.currentOfficeId = roleRow.office_id; // null for super_admin
+  window.isSuperAdmin = currentAdminRole === "super_admin";
+  window.currentSession = session;
 
   if (typeof onReadyCallback === "function") {
     await onReadyCallback();

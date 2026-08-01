@@ -24,6 +24,15 @@
 
       <!-- Filters -->
       <div class="bg-white rounded-xl shadow p-4 border border-gray-200 mb-6 flex flex-wrap gap-3 items-end">
+        <div class="flex gap-2 mb-4">
+          <button id="mode-event" onclick="switchInsightsMode('event')" class="text-sm font-semibold px-4 py-2 rounded-lg bg-red-800 text-white">Event Insights</button>
+          <button id="mode-overall" onclick="switchInsightsMode('overall')" class="text-sm font-semibold px-4 py-2 rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200">Overall Summary</button>
+        </div>
+
+        <div id="event-selector-wrapper" class="mb-4">
+          <label class="block text-xs font-medium text-gray-600 mb-1">Select Event</label>
+          <select id="event-selector" onchange="onEventSelected()" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"></select>
+        </div>
         <div>
           <label class="block text-xs font-medium text-gray-600 mb-1">Date Range</label>
           <select id="filter-daterange" onchange="loadInsights()" class="border border-gray-300 rounded-lg px-3 py-1.5 text-sm">
@@ -110,6 +119,25 @@
         </table>
       </div>
 
+      <div class="grid sm:grid-cols-2 gap-4 mb-6">
+        <div class="bg-white rounded-xl shadow p-4 border border-gray-200">
+          <h3 class="text-sm font-semibold text-red-800 mb-2">Department Breakdown</h3>
+          <div id="breakdown-department"></div>
+        </div>
+        <div class="bg-white rounded-xl shadow p-4 border border-gray-200">
+          <h3 class="text-sm font-semibold text-red-800 mb-2">Program Breakdown</h3>
+          <div id="breakdown-program"></div>
+        </div>
+        <div class="bg-white rounded-xl shadow p-4 border border-gray-200">
+          <h3 class="text-sm font-semibold text-red-800 mb-2">Year Level Breakdown</h3>
+          <div id="breakdown-year_level"></div>
+        </div>
+        <div class="bg-white rounded-xl shadow p-4 border border-gray-200">
+          <h3 class="text-sm font-semibold text-red-800 mb-2">Section Breakdown</h3>
+          <div id="breakdown-section"></div>
+        </div>
+      </div>
+
     </div>
   </main>
 
@@ -121,6 +149,65 @@
     let allData = [];
     let rateChart = null;
     let filtersInitialized = false;
+
+    let insightsMode = 'event';
+    let selectedEventId = null;
+    let allAccessibleEvents = [];
+
+    async function populateEventSelector() {
+      // Naturally office-scoped: RLS returns only events this admin can access.
+      const { data } = await supabaseClient
+        .from("events")
+        .select("id, name, event_date, event_type, offices(name)")
+        .is("deleted_at", null)
+        .order("event_date", { ascending: false });
+
+      allAccessibleEvents = data || [];
+      const select = document.getElementById("event-selector");
+      select.innerHTML = allAccessibleEvents.map(ev => `
+        <option value="${ev.id}">${window.isSuperAdmin && ev.offices ? `[${escapeHtml(ev.offices.name)}] ` : ''}${escapeHtml(ev.name)} — ${ev.event_date}</option>
+      `).join("");
+
+      if (allAccessibleEvents.length > 0) {
+        selectedEventId = allAccessibleEvents[0].id;
+        select.value = selectedEventId;
+      }
+    }
+
+    function switchInsightsMode(mode) {
+      insightsMode = mode;
+      document.getElementById("mode-event").className = mode === 'event'
+        ? "text-sm font-semibold px-4 py-2 rounded-lg bg-red-800 text-white"
+        : "text-sm font-semibold px-4 py-2 rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200";
+      document.getElementById("mode-overall").className = mode === 'overall'
+        ? "text-sm font-semibold px-4 py-2 rounded-lg bg-red-800 text-white"
+        : "text-sm font-semibold px-4 py-2 rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200";
+      document.getElementById("event-selector-wrapper").classList.toggle("hidden", mode === 'overall');
+      renderAll();
+    }
+
+    function onEventSelected() {
+      selectedEventId = document.getElementById("event-selector").value;
+      renderAll();
+    }
+
+    // The one integration point: everything downstream already reads
+    // getFilteredData()'s output, so scoping to one event happens here,
+    // once, rather than touching every render function individually.
+    function getFilteredData() {
+      const dept = document.getElementById("filter-dept").value;
+      const program = document.getElementById("filter-program").value;
+      const year = document.getElementById("filter-year").value;
+      const section = document.getElementById("filter-section").value;
+
+      return allData.filter(r =>
+        (insightsMode === 'overall' || r.event_id === selectedEventId) &&
+        (!dept || r.department === dept) &&
+        (!program || r.program === program) &&
+        (!year || r.year_level === year) &&
+        (!section || r.section === section)
+      );
+    }
 
     async function loadInsights() {
       const rangeDays = document.getElementById("filter-daterange")?.value;
@@ -138,6 +225,7 @@
       }
 
       allData = data;
+      await populateEventSelector();
       populateFilters();
       renderAll();
 
@@ -202,25 +290,28 @@
       fill("filter-section", "section");
     }
 
-    function getFilteredData() {
-      const dept = document.getElementById("filter-dept").value;
-      const program = document.getElementById("filter-program").value;
-      const year = document.getElementById("filter-year").value;
-      const section = document.getElementById("filter-section").value;
-
-      return allData.filter(r =>
-        (!dept || r.department === dept) &&
-        (!program || r.program === program) &&
-        (!year || r.year_level === year) &&
-        (!section || r.section === section)
-      );
-    }
-
     function renderAll() {
       const filtered = getFilteredData();
+
+      const overallOnlyIds = ["rate-chart", "rate-chart-empty", "open-events-body"];
+      overallOnlyIds.forEach(id => {
+        const el = document.getElementById(id)?.closest(".bg-white") || document.getElementById(id);
+        if (el) el.closest("section, div.mb-6")?.classList.toggle("hidden", insightsMode === 'event');
+      });
+      document.querySelectorAll("[id^='breakdown-']").forEach(el => {
+        el.closest(".bg-white")?.parentElement?.classList.toggle("hidden", insightsMode === 'overall');
+      });
+
       renderSummaryCards(filtered);
-      renderRateChart(filtered);
-      renderOpenEventsTable(filtered);
+      if (insightsMode === 'overall') {
+        renderRateChart(filtered);
+        renderOpenEventsTable(filtered);
+      } else {
+        renderBreakdown("breakdown-department", filtered, "department");
+        renderBreakdown("breakdown-program", filtered, "program");
+        renderBreakdown("breakdown-year_level", filtered, "year_level");
+        renderBreakdown("breakdown-section", filtered, "section");
+      }
       renderStudentSummary(filtered);
     }
 
@@ -384,6 +475,30 @@
         </tr>
       `).join("");
     }
+
+    function renderBreakdown(containerId, data, groupKey) {
+      const el = document.getElementById(containerId);
+      const groups = {};
+      data.forEach(r => {
+        const key = r[groupKey] || 'Unspecified';
+        if (!groups[key]) groups[key] = { total: 0, present: 0 };
+        groups[key].total++;
+        if (r.status === 'Present') groups[key].present++;
+      });
+
+      const rows = Object.entries(groups).sort((a, b) => b[1].total - a[1].total);
+      if (rows.length === 0) {
+        el.innerHTML = `<p class="text-xs text-gray-400">No data.</p>`;
+        return;
+      }
+      el.innerHTML = rows.map(([key, g]) => `
+        <div class="flex justify-between items-center text-sm py-1 border-b border-gray-50 last:border-0">
+          <span class="text-gray-700">${escapeHtml(key)}</span>
+          <span class="text-gray-500">${g.total} ${insightsMode === 'event' ? `(${Math.round((g.present / g.total) * 100)}%)` : ''}</span>
+        </div>
+      `).join("");
+    }
+
     // Rebuilds the exact rows shown in the student summary table, as plain arrays
     function getStudentSummaryRows() {
       const filtered = getFilteredData();

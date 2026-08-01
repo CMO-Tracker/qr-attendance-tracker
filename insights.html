@@ -317,7 +317,7 @@
 
     function renderSummaryCards(filtered) {
       const uniqueEvents = new Set(filtered.map(r => r.event_id)).size;
-      const uniqueStudents = new Set(filtered.map(r => normalizeForMatch(r.first_name) + "|" + normalizeForMatch(r.last_name))).size;
+      const uniqueStudents = new Set(filtered.map(r => r.student_id || (normalizeForMatch(r.first_name) + "|" + normalizeForMatch(r.last_name)))).size;
 
       const closedRecords = filtered.filter(r => r.events.event_type === "closed");
       const closedPresent = closedRecords.filter(r => r.status === "Present").length;

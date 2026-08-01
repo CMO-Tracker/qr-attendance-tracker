@@ -519,6 +519,8 @@
             if (currentEvent.custom_question) updateData.custom_response = record.custom_response;
             ({ error } = await supabaseClient.from("attendance_records").update(updateData).eq("id", existing.id));
           } else {
+            const studentId = await findOrCreateStudentId(record);
+            if (studentId) record.student_id = studentId;
             ({ error } = await supabaseClient.from("attendance_records").insert(record));
           }
         } else {
@@ -688,6 +690,10 @@
               .update(updateData)
               .eq("id", existing.id));
           } else {
+            if (!entry.record.student_id) {
+              const studentId = await findOrCreateStudentId(entry.record);
+              if (studentId) entry.record.student_id = studentId;
+            }
             ({ error } = await supabaseClient.from("attendance_records").insert(entry.record));
           }
         } else {
@@ -1110,7 +1116,21 @@
         return;
       }
 
+      // Roster validation already authorized this check-in above (device lock
+      // succeeded) -- this step only enriches the record with a persistent
+      // identity link. If it fails for any reason, the check-in still proceeds.
+      const studentId = await findOrCreateStudentId({
+        first_name: record.first_name,
+        middle_name: record.middle_name,
+        last_name: record.last_name,
+        department: null,
+        program: null,
+        year_level: null,
+        section: null
+      });
+
       const updateData = { status: "Present", check_in_time: new Date().toISOString() };
+      if (studentId) updateData.student_id = studentId;
       if (currentEvent.custom_question) {
         updateData.custom_response = document.getElementById("closed-custom-response").value.trim();
       }

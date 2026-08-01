@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <link rel="icon" type="image/png" href="logo.png">
-  <title>Admin Portal — QR Attendance Tracker</title>
+  <title>AttendHub - Admin Portal</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
@@ -15,7 +15,7 @@
  <header class="bg-red-800 border-b-4 border-yellow-500 py-4 px-6 flex justify-between items-center">
     <div class="flex items-center gap-3">
       <img src="logo.png" alt="School Logo" class="h-10 w-10 object-contain" />
-      <h1 class="text-white text-2xl font-bold">Admin Portal</h1>
+      <h1 class="text-white text-2xl font-bold">AttendHub - Admin Portal</h1>
     </div>
     <div class="flex items-center gap-4">
       <a href="insights.html" class="text-yellow-300 text-sm underline">Insights</a>
@@ -34,7 +34,7 @@
 
       <div class="relative z-10">
         <div class="text-center mb-10">
-           <h1 id="hub-greeting" class="text-3xl font-bold text-gray-900 tracking-tight mb-1">Welcome, Coordinator</h1>
+           <h1 id="hub-greeting" class="text-3xl font-bold text-gray-900 tracking-tight mb-1">Welcome to AttendHub, Coordinator</h1>
           <p class="text-gray-400 text-sm">What would you like to do today?</p>
         </div>
 
@@ -273,12 +273,14 @@
       if (!heading) return;
 
       if (window.isSuperAdmin) {
-        heading.textContent = "Welcome, Coordinator";
+        heading.textContent = "Welcome to AttendHub, Coordinator";
         return;
       }
 
       const myOffice = allOffices.find(o => o.id === window.currentOfficeId);
-      heading.textContent = myOffice ? `Welcome, ${myOffice.code} Coordinator` : "Welcome, Coordinator";
+      heading.textContent = myOffice
+        ? `Welcome to AttendHub, ${myOffice.code} Coordinator`
+        : "Welcome to AttendHub, Coordinator";
     }
 
     // Manual overrides take absolute priority over the scheduled clock.

@@ -265,11 +265,22 @@
             <option value="recent">Last Seen (Newest)</option>
           </select>
         </div>
+        <button onclick="openDuplicateReview()" class="text-xs font-medium px-3 py-2 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50">🔍 Check for Duplicates</button>
       </div>
 
       <div id="directory-list" class="bg-white rounded-xl shadow border border-gray-200 divide-y divide-gray-50"></div>
       <div id="directory-pagination" class="flex justify-center gap-2 mt-4"></div>
     </section>
+
+    <div id="duplicate-review-modal" class="fixed inset-0 bg-black bg-opacity-40 z-[120] flex items-center justify-center p-4 hidden" role="dialog" aria-modal="true">
+      <div class="bg-white rounded-xl shadow-2xl max-w-lg w-full max-h-[85vh] flex flex-col">
+        <div class="flex justify-between items-center p-4 border-b border-gray-100">
+          <h2 class="text-lg font-bold text-red-800">Possible Duplicate Students</h2>
+          <button onclick="closeDuplicateReview()" class="text-gray-400 hover:text-gray-600 text-xl leading-none">&times;</button>
+        </div>
+        <div id="duplicate-review-list" class="p-4 overflow-y-auto"></div>
+      </div>
+    </div>
 
     <div id="student-profile-modal" class="fixed inset-0 bg-black bg-opacity-40 z-[120] flex items-center justify-center p-4 hidden" role="dialog" aria-modal="true">
       <div class="bg-white rounded-xl shadow-2xl max-w-lg w-full max-h-[85vh] flex flex-col">
@@ -562,6 +573,80 @@
 
     function closeStudentProfile() {
       document.getElementById("student-profile-modal").classList.add("hidden");
+    }
+
+    // ---- Duplicate Detection & Merge (Phase 5, scoped) ----
+    let currentDuplicateGroups = [];
+
+    // Groups the already-loaded Directory data by normalized last name.
+    // Deliberately does NOT try to auto-decide who's a true duplicate --
+    // grouping by last name alone is transparent and reviewable; guessing
+    // at first-name similarity risks false positives on a real merge action.
+    function findPotentialDuplicates() {
+      const groups = {};
+      directoryStudents.forEach(s => {
+        const key = normalizeForMatch(s.profile.last_name);
+        if (!groups[key]) groups[key] = [];
+        groups[key].push(s);
+      });
+      return Object.values(groups).filter(g => g.length > 1);
+    }
+
+    function openDuplicateReview() {
+      currentDuplicateGroups = findPotentialDuplicates();
+      const listEl = document.getElementById("duplicate-review-list");
+
+      if (currentDuplicateGroups.length === 0) {
+        listEl.innerHTML = `<p class="text-sm text-gray-400 text-center py-8">No students currently share a last name -- no potential duplicates to review.</p>`;
+      } else {
+        listEl.innerHTML = currentDuplicateGroups.map((group, gIdx) => `
+          <div class="border border-gray-200 rounded-lg p-3 mb-3">
+            <p class="text-xs font-semibold text-gray-500 uppercase mb-2">Possible Match — ${escapeHtml(group[0].profile.last_name)}</p>
+            ${group.map((s, sIdx) => `
+              <label class="flex items-start gap-2 py-1 text-sm cursor-pointer">
+                <input type="radio" name="keeper-${gIdx}" value="${s.id}" ${sIdx === 0 ? 'checked' : ''} class="mt-1" />
+                <span class="flex-1">
+                  ${escapeHtml(s.profile.first_name)} ${escapeHtml(s.profile.middle_name || '')} ${escapeHtml(s.profile.last_name)}
+                  <span class="block text-xs text-gray-400">${s.totalEvents} event${s.totalEvents === 1 ? '' : 's'} · ${[s.profile.department, s.profile.program].filter(Boolean).map(escapeHtml).join(' / ') || 'no academic info on file'}</span>
+                </span>
+              </label>
+            `).join("")}
+            <button onclick="mergeDuplicateGroup(${gIdx})" class="mt-2 text-xs font-semibold px-3 py-1.5 rounded-lg bg-red-800 hover:bg-red-900 text-white">Merge Into Selected</button>
+          </div>
+        `).join("");
+      }
+
+      document.getElementById("duplicate-review-modal").classList.remove("hidden");
+    }
+
+    async function mergeDuplicateGroup(groupIndex) {
+      const group = currentDuplicateGroups[groupIndex];
+      const selectedRadio = document.querySelector(`input[name="keeper-${groupIndex}"]:checked`);
+      const keeperId = selectedRadio.value;
+      const duplicateIds = group.map(s => s.id).filter(id => id !== keeperId);
+
+      const confirmed = await showConfirmDialog(
+        `Merge ${duplicateIds.length} duplicate profile(s) into the selected one?\n\nAll their attendance history will be reassigned to the kept profile, and the duplicate profile(s) will be permanently deleted. This cannot be undone.`
+      );
+      if (!confirmed) return;
+
+      for (const dupId of duplicateIds) {
+        const { error } = await supabaseClient.rpc('merge_student_profiles', {
+          p_keeper_id: keeperId, p_duplicate_id: dupId
+        });
+        if (error) {
+          showToast("Error merging: " + error.message, "error");
+          return;
+        }
+      }
+
+      showToast("Profiles merged successfully.");
+      closeDuplicateReview();
+      loadStudentDirectory(); // refresh the list so the merge is reflected immediately
+    }
+
+    function closeDuplicateReview() {
+      document.getElementById("duplicate-review-modal").classList.add("hidden");
     }
 
     function updateGreeting() {

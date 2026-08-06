@@ -115,22 +115,90 @@
               <option value="closed">Closed (e.g. Retreat — pre-loaded roster)</option>
             </select>
           </div>
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Event Date</label>
-            <input type="date" id="event-date" required
-              class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-red-800 focus:outline-none" />
+
+          <div class="border border-gray-200 rounded-lg p-3 bg-gray-50">
+            <label class="block text-sm font-semibold text-red-800 mb-2">Schedule Type</label>
+            <select id="event-schedule-type" onchange="toggleScheduleType()" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
+              <option value="single">Single Session (one date, one event)</option>
+              <option value="recurring">Recurring Sessions (repeats daily over a date range)</option>
+            </select>
           </div>
 
-          <div class="grid grid-cols-2 gap-3">
+          <div id="single-session-fields">
             <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">Start Time</label>
-              <input type="datetime-local" id="start-time" required
-                class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+              <label class="block text-sm font-medium text-gray-700 mb-1">Event Date</label>
+              <input type="date" id="event-date" required
+                class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-red-800 focus:outline-none" />
             </div>
+
+            <div class="grid grid-cols-2 gap-3 mt-4">
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Start Time</label>
+                <input type="datetime-local" id="start-time" required
+                  class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">End Time</label>
+                <input type="datetime-local" id="end-time" required
+                  class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+              </div>
+            </div>
+          </div>
+
+          <div id="recurring-session-fields" class="hidden border border-gray-200 rounded-lg p-3 bg-gray-50 space-y-3">
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="block text-xs font-medium text-gray-600 mb-1">Recurring Start Date</label>
+                <input type="date" id="recurring-start-date" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+              </div>
+              <div>
+                <label class="block text-xs font-medium text-gray-600 mb-1">Recurring End Date</label>
+                <input type="date" id="recurring-end-date" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+              </div>
+            </div>
+
             <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">End Time</label>
-              <input type="datetime-local" id="end-time" required
-                class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+              <label class="block text-xs font-medium text-gray-600 mb-1">Session Layout</label>
+              <select id="session-layout" onchange="toggleSessionLayout()" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
+                <option value="whole_day">Whole Day (one Check-In / Check-Out window)</option>
+                <option value="morning_afternoon">Morning + Afternoon (two separate windows)</option>
+              </select>
+            </div>
+
+            <div id="whole-day-time-fields" class="grid grid-cols-2 gap-2">
+              <div>
+                <label class="block text-xs font-medium text-gray-600 mb-1">Daily Check-In Time</label>
+                <input type="time" id="session-checkin-time" class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
+              </div>
+              <div>
+                <label class="block text-xs font-medium text-gray-600 mb-1">Daily Check-Out Time</label>
+                <input type="time" id="session-checkout-time" class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
+              </div>
+            </div>
+
+            <div id="morning-afternoon-time-fields" class="hidden space-y-2">
+              <p class="text-xs font-semibold text-gray-500">Morning</p>
+              <div class="grid grid-cols-2 gap-2">
+                <div>
+                  <label class="block text-xs font-medium text-gray-600 mb-1">Check-In</label>
+                  <input type="time" id="morning-checkin-time" class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
+                </div>
+                <div>
+                  <label class="block text-xs font-medium text-gray-600 mb-1">Check-Out</label>
+                  <input type="time" id="morning-checkout-time" class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
+                </div>
+              </div>
+              <p class="text-xs font-semibold text-gray-500">Afternoon</p>
+              <div class="grid grid-cols-2 gap-2">
+                <div>
+                  <label class="block text-xs font-medium text-gray-600 mb-1">Check-In</label>
+                  <input type="time" id="afternoon-checkin-time" class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
+                </div>
+                <div>
+                  <label class="block text-xs font-medium text-gray-600 mb-1">Check-Out</label>
+                  <input type="time" id="afternoon-checkout-time" class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
+                </div>
+              </div>
             </div>
           </div>
 
@@ -192,6 +260,24 @@
                 </div>
               </div>
             </div>
+          </div>
+
+          <div class="border border-gray-200 rounded-lg p-3 bg-gray-50">
+            <label class="block text-sm font-semibold text-red-800 mb-2">Attendance Mode</label>
+            <select id="event-attendance-mode" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
+              <option value="checkin_checkout">Check-In + Check-Out</option>
+              <option value="checkin_only">Check-In Only (Novenas, Masses, Seminars, Faculty Formation)</option>
+            </select>
+          </div>
+
+          <div class="border border-gray-200 rounded-lg p-3 bg-gray-50">
+            <label class="block text-sm font-semibold text-red-800 mb-2">Participant Types</label>
+            <label class="flex items-center gap-2 text-sm mb-1">
+              <input type="checkbox" id="event-allow-students" checked class="rounded" /> Students
+            </label>
+            <label class="flex items-center gap-2 text-sm">
+              <input type="checkbox" id="event-allow-employees" class="rounded" /> Employees
+            </label>
           </div>
 
           <div>
@@ -485,6 +571,24 @@
       renderDirectoryList();
     }
 
+    function toggleScheduleType() {
+      const isRecurring = document.getElementById("event-schedule-type").value === "recurring";
+      document.getElementById("single-session-fields").classList.toggle("hidden", isRecurring);
+      document.getElementById("recurring-session-fields").classList.toggle("hidden", !isRecurring);
+
+      // Start/End Time only apply to single-session events -- toggling
+      // `required` so the browser doesn't block submission over hidden fields
+      document.getElementById("start-time").required = !isRecurring;
+      document.getElementById("end-time").required = !isRecurring;
+      document.getElementById("event-date").required = !isRecurring;
+    }
+
+    function toggleSessionLayout() {
+      const isMorningAfternoon = document.getElementById("session-layout").value === "morning_afternoon";
+      document.getElementById("whole-day-time-fields").classList.toggle("hidden", isMorningAfternoon);
+      document.getElementById("morning-afternoon-time-fields").classList.toggle("hidden", !isMorningAfternoon);
+    }
+
     function statCard(label, value, colorClass = "text-gray-800") {
       return `
         <div class="bg-gray-50 rounded-lg p-3 text-center border border-gray-100">
@@ -738,7 +842,12 @@
 
       const qrSection = category === 'completed' ? '' : `
         <div class="flex gap-2 flex-wrap mt-3 pt-3 border-t border-gray-50">
-          ${ev.event_type === 'open' ? `
+          ${ev.event_type === 'open' && ev.schedule_type === 'recurring' && ev.session_layout === 'morning_afternoon' ? `
+            <button onclick="generateQR('${ev.id}', 'morning_checkin', '${escapeQuotes(ev.name)}')" class="${goldBtn}">Generate Morning Check-In QR</button>
+            <button onclick="generateQR('${ev.id}', 'morning_checkout', '${escapeQuotes(ev.name)}')" class="${goldBtn}">Generate Morning Check-Out QR</button>
+            <button onclick="generateQR('${ev.id}', 'afternoon_checkin', '${escapeQuotes(ev.name)}')" class="${goldBtn}">Generate Afternoon Check-In QR</button>
+            <button onclick="generateQR('${ev.id}', 'afternoon_checkout', '${escapeQuotes(ev.name)}')" class="${goldBtn}">Generate Afternoon Check-Out QR</button>
+          ` : ev.event_type === 'open' ? `
             <button onclick="generateQR('${ev.id}', 'checkin', '${escapeQuotes(ev.name)}')" class="${goldBtn}">Generate Check-In QR</button>
             <button onclick="generateQR('${ev.id}', 'checkout', '${escapeQuotes(ev.name)}')" class="${goldBtn}">Generate Check-Out QR</button>
           ` : `
@@ -941,15 +1050,19 @@
         ? document.getElementById("event-office").value
         : window.currentOfficeId;
 
+      const scheduleType = document.getElementById("event-schedule-type").value;
+      const isRecurring = scheduleType === "recurring";
+      const sessionLayout = isRecurring ? document.getElementById("session-layout").value : null;
+
       const { error } = await supabaseClient
         .from("events")
         .insert({
           name,
           office_id: officeId,
           event_type: eventType,
-          event_date: eventDate,
-          start_time: new Date(startTime).toISOString(),
-          end_time: new Date(endTime).toISOString(),
+          event_date: isRecurring ? document.getElementById("recurring-start-date").value : eventDate,
+          start_time: isRecurring ? null : new Date(startTime).toISOString(),
+          end_time: isRecurring ? null : new Date(endTime).toISOString(),
           latitude,
           longitude,
           radius_meters: radiusMeters,
@@ -958,7 +1071,20 @@
           checkin_start: useStrictTimings && checkinStart ? new Date(checkinStart).toISOString() : null,
           checkin_end: useStrictTimings && checkinEnd ? new Date(checkinEnd).toISOString() : null,
           checkout_start: useStrictTimings && checkoutStart ? new Date(checkoutStart).toISOString() : null,
-          checkout_end: useStrictTimings && checkoutEnd ? new Date(checkoutEnd).toISOString() : null
+          checkout_end: useStrictTimings && checkoutEnd ? new Date(checkoutEnd).toISOString() : null,
+          schedule_type: scheduleType,
+          recurring_start_date: isRecurring ? document.getElementById("recurring-start-date").value : null,
+          recurring_end_date: isRecurring ? document.getElementById("recurring-end-date").value : null,
+          session_layout: sessionLayout,
+          session_checkin_time: (isRecurring && sessionLayout === 'whole_day') ? document.getElementById("session-checkin-time").value || null : null,
+          session_checkout_time: (isRecurring && sessionLayout === 'whole_day') ? document.getElementById("session-checkout-time").value || null : null,
+          morning_checkin_time: (isRecurring && sessionLayout === 'morning_afternoon') ? document.getElementById("morning-checkin-time").value || null : null,
+          morning_checkout_time: (isRecurring && sessionLayout === 'morning_afternoon') ? document.getElementById("morning-checkout-time").value || null : null,
+          afternoon_checkin_time: (isRecurring && sessionLayout === 'morning_afternoon') ? document.getElementById("afternoon-checkin-time").value || null : null,
+          afternoon_checkout_time: (isRecurring && sessionLayout === 'morning_afternoon') ? document.getElementById("afternoon-checkout-time").value || null : null,
+          attendance_mode: document.getElementById("event-attendance-mode").value,
+          allow_students: document.getElementById("event-allow-students").checked,
+          allow_employees: document.getElementById("event-allow-employees").checked
         });
 
       if (error) {
@@ -1312,7 +1438,12 @@
       const container = document.getElementById(`qr-container-${eventId}`);
       const wrapper = document.createElement("div");
       wrapper.className = "flex flex-col items-center bg-gray-50 border border-gray-200 rounded-lg p-3";
-      const label = action === 'checkin' ? 'Check-In' : action === 'checkout' ? 'Check-Out' : 'Sign-In';
+      const labelMap = {
+        checkin: 'Check-In', checkout: 'Check-Out', signin: 'Sign-In',
+        morning_checkin: 'Morning Check-In', morning_checkout: 'Morning Check-Out',
+        afternoon_checkin: 'Afternoon Check-In', afternoon_checkout: 'Afternoon Check-Out'
+      };
+      const label = labelMap[action] || 'Sign-In';
 
       wrapper.innerHTML = `
         <p class="text-xs font-semibold text-red-800 mb-2">${label} QR</p>

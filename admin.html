@@ -108,7 +108,7 @@
 
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">Event Type</label>
-            <select id="event-type" required
+            <select id="event-type" required onchange="enforceRecurringOpenOnly()"
               class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-red-800 focus:outline-none">
               <option value="">-- Select --</option>
               <option value="open">Open (e.g. Mass — separate Check-In / Check-Out)</option>
@@ -569,6 +569,17 @@
     function changeDirectoryPage(delta) {
       directoryPage += delta;
       renderDirectoryList();
+    }
+
+    // Recurring sessions aren't supported for Closed (roster-based) events yet --
+    // the roster model assumes one pre-loaded list for the whole event, not
+    // a fresh list per day. Force Closed events back to Single Session.
+    function enforceRecurringOpenOnly() {
+      const eventType = document.getElementById("event-type").value;
+      if (eventType === "closed") {
+        document.getElementById("event-schedule-type").value = "single";
+        toggleScheduleType();
+      }
     }
 
     function toggleScheduleType() {
